@@ -35,4 +35,13 @@
 - Iteration 2: clarifications resolved (Q1: feedback after each take only; Q2: all analysis on the phone). All items pass.
 - Iteration 3 (2026-11-11): built-in metronome removed (FR-003 is now an optional typed target tempo).
 - Iteration 4 (2026-11-11): added User Story 4 (loop/backing track, P2), FR-024–FR-030, SC-008–SC-009, new edge cases and the Accompaniment analysis entity. Re-validated: all items pass. No implementation details in the spec, and the new requirements and criteria are testable and measurable.
+- Iteration 5 (2026-11-11), after `/speckit-analyze`:
+  - **Unsaved takes**: added a "Not saved yet" library section (Story 2 scenario 5, FR-015).
+  - **Analysis notice**: added an in-app notice when analysis finishes after the user leaves the screen.
+  - **Crashes**: narrowed crash and power-loss recovery (the take may be lost; the app says so).
+  - **FR-007**: aligned with FR-026.
+  - **Framing**: removed the guitar-neck framing promise.
+  - **Success criteria**: moved SC-004–SC-006 to post-launch product goals (no in-app analytics).
+
+  All items pass.
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`

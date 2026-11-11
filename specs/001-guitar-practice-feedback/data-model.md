@@ -30,6 +30,7 @@ One row per install. It is created during onboarding and used in every analysis 
 | handedness | enum `right` \| `left` | required |
 | skillLevel | enum `beginner` \| `intermediate` \| `advanced` | required |
 | preferredCamera | enum `front` \| `back` | default `front` |
+| lastAccompanimentSetting | enum `auto` \| `on` \| `off` | default `auto`. Pre-selects the Record screen's accompaniment setting (FR-024) |
 | createdAt / updatedAt | text | |
 
 ## PracticeItem (label)
@@ -89,7 +90,9 @@ saved:           false (draft) ──Save──► true
                  true ──Delete (confirmed)──► row, report, points and folder deleted (Story 2 scenario 3)
 ```
 
-**Draft cleanup**: on app start, drafts with `interrupted = true` go to the "Recovered takes" prompt. Any other draft older than 24 h is deleted.
+**Draft cleanup**: on app start, drafts with `interrupted = true` go to the "Recovered takes" prompt. Any other draft older than 24 h is deleted. Until then, drafts appear in the library's "Not saved yet" section with the time remaining (FR-015).
+
+**Unreadable partial recordings**: if an interrupted take's video can't be decoded (e.g. after a crash or power loss), recovery deletes the take and tells the user it was lost (spec edge case).
 
 ## FeedbackReport
 

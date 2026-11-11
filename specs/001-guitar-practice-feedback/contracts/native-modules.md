@@ -18,7 +18,7 @@ interface HandsResult {
 ```
 
 **Behaviour**
-- **Model**: MediaPipe Hand Landmarker `.task`, bundled with the app (no download). Runs in LIVE_STREAM mode on iOS and Android.
+- **Model**: MediaPipe Hand Landmarker `.task`, bundled with the app (no download). Runs in **VIDEO** running mode (synchronous `detectForVideo(image, timestampMs)`) on iOS and Android. The frame processor needs the result back in the same call; LIVE_STREAM mode only returns results asynchronously via a callback.
 - **Frame rate**: the JS caller throttles it to `targetFps` (12, or 8 on low-tier devices). The plugin itself never blocks for more than 40 ms.
 - **Coordinates**: normalised to the upright, un-mirrored image. `side` is MediaPipe's raw label; mirror correction happens in the engine (contract guarantee 5).
 
@@ -41,7 +41,7 @@ readPcmChunk(pcmPath: string, offsetFrames: number, frames: number): Float32Arra
 
 **Behaviour**
 - **Platform decoders**: iOS uses `AVAssetReader` (Linear PCM float32 output settings). Android uses `MediaExtractor` + `MediaCodec`, then resamples.
-- **Partial recordings**: the decoder handles a partially written file (interrupted take) up to the last complete audio frame.
+- **Partial recordings**: a cleanly stopped interrupted recording (phone call, backgrounding) is a normal file and decodes normally. A file left by a crash or power loss may be unreadable (e.g. a missing MP4 index); the decoder MUST return `E_DECODE_FAILED` or `E_NO_AUDIO_TRACK` for it rather than crash, and recovery then deletes the take (spec edge case).
 - **Errors**: `E_NO_AUDIO_TRACK`, `E_DECODE_FAILED`, `E_FILE_NOT_FOUND`. All are surfaced to the job queue as `analysisStatus = failed` with a retry option.
 
 ## Third-party modules used directly (no wrapper contract)

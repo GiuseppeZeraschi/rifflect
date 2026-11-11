@@ -27,7 +27,7 @@ All decisions and alternatives are in [research.md](./research.md).
 **Primary Dependencies**:
 - **Platform**: Expo (dev builds / EAS Build)
 - **Camera and on-device ML**: react-native-vision-camera (recording and frame processors), MediaPipe Tasks Vision Hand Landmarker (iOS/Android SDKs)
-- **Storage**: expo-sqlite + drizzle-orm, expo-file-system, expo-media-library, expo-sharing
+- **Storage**: expo-sqlite + drizzle-orm, expo-file-system, expo-media-library, expo-sharing, expo-video-thumbnails (library thumbnails)
 - **UI**: expo-video, expo-router, victory-native (Skia charts), zustand
 - **Background work**: react-native-worklets-core (off-UI-thread analysis)
 

@@ -1,0 +1,738 @@
+---
+
+description: "Task list for AI Guitar Practice Feedback (Rifflect)"
+---
+
+# Tasks: AI Guitar Practice Feedback
+
+**Input**: Design documents from `specs/001-guitar-practice-feedback/`
+
+**Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/](./contracts/), [quickstart.md](./quickstart.md)
+
+**Tests**: This list includes test tasks for the **analysis engine**, the **data layer**, the **job queue** and the **key screens**. They are included because [contracts/analysis-engine.md](./contracts/analysis-engine.md) defines guarantees marked as tested, and [quickstart.md](./quickstart.md) defines automated checks (`npm test`, `npm run test:analysis`, Maestro flows). Write the engine and data-layer tests first, and make sure they fail before you implement.
+
+**Organization**: Tasks are grouped by user story. The phases follow the spec's priorities: US1 (P1) → US2 (P2) → US4 (P2) → US3 (P3). Story labels match the story numbers in [spec.md](./spec.md).
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: can run in parallel (different files, no dependency on unfinished tasks)
+- **[Story]**: the user story the task belongs to (US1–US4)
+- **(human)**: needs a person with a guitar, a physical device or labelled data; an agent cannot complete it alone
+- **(device)**: native code that can only be verified with a dev build on a physical device. iOS needs an EAS cloud build, because the development machine runs Windows
+
+## Path Conventions
+
+This is a single Expo/React Native app at the repository root ([plan.md § Project Structure](./plan.md#project-structure)):
+- **App code**: `app/` (expo-router routes) and `src/` (logic)
+- **Local native modules**: `modules/`
+- **Tests**: `tests/`, plus Maestro flows in `e2e/`
+- **Evaluation tooling**: `tools/eval/`
+- **Analysis engine**: the engine in `src/analysis/` MUST NOT import `react-native`, `expo-*` or any native module
+
+---
+
+## Phase 1: Setup (Shared Infrastructure)
+
+**Purpose**: Project initialisation, tooling and configuration.
+
+- [ ] T001 Initialise an Expo TypeScript app at the repository root using the expo-router tabs template. Set the name to "Rifflect", the slug to `rifflect`, and the iOS `bundleIdentifier` and Android `package` to `com.rifflect.app`. Enable the New Architecture (`newArchEnabled: true`) in `app.json`. Keep the existing `.gitignore`, `.gitattributes`, `LICENSE`, `.specify/`, `.claude/` and `specs/`
+- [ ] T002 Install the runtime dependencies from [plan.md § Technical Context](./plan.md#technical-context) into `package.json`:
+  - Camera and background work: `react-native-vision-camera`, `react-native-worklets-core`
+  - Storage: `expo-sqlite`, `drizzle-orm`, `expo-file-system`, `expo-media-library`, `expo-sharing`
+  - Video and UI: `expo-video`, `expo-video-thumbnails`, `expo-router`, `victory-native`, `@shopify/react-native-skia`, `zustand`, `expo-dev-client`
+  - Utilities: `uuid` (with v7 support)
+
+  Install the dev dependencies:
+  - `drizzle-kit`, `better-sqlite3`, `@types/better-sqlite3`
+  - `jest`, `jest-expo`, `@testing-library/react-native`, `ts-node`
+
+  Use `npx expo install` wherever a package has an Expo-pinned version.
+- [ ] T003 [P] Configure `tsconfig.json`: `"strict": true`, `"noUncheckedIndexedAccess": true`, and the path alias `"@/*": ["src/*"]` (mirror the alias in `babel.config.js` via `babel-plugin-module-resolver`)
+- [ ] T004 [P] Configure ESLint (flat config, `eslint-config-expo`) in `eslint.config.js`. Add a `no-restricted-imports` rule that blocks `react-native`, `expo*` and `@/native/*` inside `src/analysis/**`. Add `.prettierrc`. Add npm scripts `lint`, `typecheck` (`tsc --noEmit`) and `format` in `package.json`
+- [ ] T005 [P] Configure Jest in `jest.config.js` with two projects:
+  - `node`: `testEnvironment: node`, ts-jest or babel-jest, matching `tests/analysis/**`, `tests/unit/**` and `tests/helpers/**`
+  - `app`: preset `jest-expo`, matching `tests/components/**`
+
+  Add npm scripts: `test` (all), `test:analysis` (`jest --selectProjects node tests/analysis`), and `eval` (`ts-node tools/eval/run.ts`)
+- [ ] T006 [P] Create the empty folder skeleton from [plan.md](./plan.md#source-code-repository-root), with an `index.ts` placeholder where a barrel is expected:
+  - `src/analysis/{dsp,timing,technique,accompaniment,scoring,feedback-text,config}/`
+  - `src/{capture,jobs,data/db,data/repositories,data/files,native,features,ui,lib}/`
+  - `tests/{unit,analysis,fixtures,components,helpers}/`
+  - `e2e/`, `tools/eval/`
+- [ ] T007 [P] Create `eas.json` with build profiles:
+  - `development`: `developmentClient: true`, internal distribution, Android APK
+  - `preview`: internal
+  - `production`
+
+  Document the iOS dev-build command `eas build --profile development --platform ios` in `README.md`
+- [ ] T008 [P] Add permissions and config plugins in `app.json`:
+  - **VisionCamera plugin** with `enableMicrophonePermission: true` and `enableFrameProcessors: true`
+  - **iOS usage strings**:
+    - `NSCameraUsageDescription` ("Rifflect uses the camera to see your hands while you play")
+    - `NSMicrophoneUsageDescription` ("Rifflect listens to your playing to give timing feedback")
+    - `NSPhotoLibraryAddUsageDescription` ("Save your takes to Photos when you choose to export them")
+  - **Android permissions**: `CAMERA`, `RECORD_AUDIO`
+  - **Plugins**: `expo-media-library` (save-only), `expo-sqlite`
+- [ ] T009 [P] Download the MediaPipe Hand Landmarker model (`hand_landmarker.task`, float16, from Google's MediaPipe model page) to `assets/models/hand_landmarker.task`. Record its source URL and SHA-256 in `assets/models/README.md`. Add `task` to `resolver.assetExts` in `metro.config.js`
+- [ ] T010 [P] Create the Maestro config `e2e/config.yaml` (appId `com.rifflect.app`) and a smoke flow `e2e/smoke.yaml` that launches the app and asserts the onboarding screen is visible
+
+**Checkpoint**: `npm run typecheck`, `npm run lint` and `npm test` (no tests yet) run cleanly. `npx expo prebuild` succeeds.
+
+---
+
+## Phase 2: Foundational (Blocking Prerequisites)
+
+**Purpose**: The database, file storage, native modules, device spikes, analysis core types, DSP, job queue and app shell. Every user story depends on these.
+
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete. The spike results (T027–T028) can change how US1 captures hand landmarks.
+
+### Data layer
+
+- [ ] T011 Create the Drizzle schema in `src/data/db/schema.ts` for all tables in [data-model.md](./data-model.md). Use UUID v7 text primary keys and ISO-8601 UTC text timestamps. Encode the enums as text with TypeScript unions. Tables and their constraints:
+  - **`player_profile`**:
+    - `id` "always `"me"`"
+    - `handedness` enum `right` | `left` "required"
+    - `skillLevel` enum `beginner` | `intermediate` | `advanced` "required"
+    - `preferredCamera` enum `front` | `back` "default `front`"
+    - `lastAccompanimentSetting` enum `auto` | `on` | `off` "default `auto`"
+    - `createdAt`, `updatedAt`
+  - **`practice_item`**:
+    - `name` "1–60 chars, trimmed, unique ignoring case" (unique index on `lower(name)`)
+    - `createdAt`, `lastUsedAt`
+  - **`take`**: all fields in data-model.md § Take, including:
+    - `practiceItemId` nullable FK (`ON DELETE SET NULL`)
+    - `title` "≤ 80 chars"
+    - `durationMs` "5,000–300,000 for analysis"
+    - `targetTempoBpm` "30–300"
+    - `accompanimentSetting` enum `auto` | `on` | `off` "default `auto`"
+    - `captureStatus` enum `recording` | `complete` | `partial`
+    - `analysisStatus` enum `pending` | `analysing` | `analysed` | `failed` | `no_playing` | `too_short`
+    - `saved` bool default false, `interrupted` bool default false
+  - **`feedback_report`**: all fields in data-model.md § FeedbackReport:
+    - `takeId` unique FK with cascade delete
+    - `timingScore` / `techniqueScore` "0–100; null = not enough data"
+    - `summary` "one line, ≤ 140 chars"
+    - JSON columns `analysedCoverage` and `limitations`
+    - `accompanimentKind` enum `none` | `loop` | `backing` | `click`
+    - `loopLengthMs`, `timingReference` enum `own_playing` | `accompaniment`
+    - `separationConfidence` enum `good` | `partial` | `poor` (nullable)
+    - `liveOnsetMatchRate`, `targetTempoDeltaBpm`, `processingMs`
+  - **`feedback_point`**: all fields in data-model.md § FeedbackPoint, with cascade delete from the report:
+    - `category` enum `timing` | `technique`
+    - `aspect` enum `tempo` | `rhythm` | `fretting_hand` | `picking_hand` | `clarity` | `posture`
+    - `severity` enum `info` | `minor` | `moderate` | `major`
+    - `confidence` "0–1"
+    - JSON `metrics`, `sortOrder`
+  - **Indexes**: all four from data-model.md § Indexes, plus `feedback_report(accompanimentKind)`
+- [ ] T012 Add `drizzle.config.ts` (dialect `sqlite`, driver `expo`). Generate the initial migration into `src/data/db/migrations/`. Create `src/data/db/client.ts`, which opens `rifflect.db` via `expo-sqlite` with `PRAGMA foreign_keys = ON` and exports `db` and a `useDbMigrations()` hook (drizzle `useMigrations`)
+- [ ] T013 [P] Create the Node test DB helper `tests/helpers/testDb.ts`. It builds an in-memory `better-sqlite3` database with drizzle (`drizzle-orm/better-sqlite3`), applies the migrations from `src/data/db/migrations/`, and returns a fresh `db` per test
+- [ ] T014 [P] Create `src/lib/ids.ts` (`newId()` returns a UUID v7) and `src/lib/time.ts` (`nowIso()`, `localDayKey(iso)`, `isoWeekKey(iso)`). Add unit tests in `tests/unit/lib/time.test.ts`
+- [ ] T015 [P] Create the take file store `src/data/files/takeFiles.ts` on top of `expo-file-system`, with the layout from [data-model.md § File layout](./data-model.md#file-layout):
+  - `takeDir(id)` = `<documents>/takes/<id>/`, plus `videoPath`, `landmarksPath`, `thumbPath`
+  - `pcmCachePath(id)` = `<cache>/analysis/<id>.f32`
+  - `ensureTakeDir`, `deleteTakeDir`, `takeDirSizeBytes`, `freeDiskBytes`
+
+  File paths are stored relative to the documents directory.
+
+### Native modules (see [contracts/native-modules.md](./contracts/native-modules.md))
+
+- [ ] T016 Scaffold the local Expo module `modules/rifflect-audio-decoder` (`npx create-expo-module@latest --local`). Define its TS interface in `modules/rifflect-audio-decoder/src/index.ts`, exactly as in the contract (`decodeAudioTrack`, `readPcmChunk`, error codes `E_NO_AUDIO_TRACK`, `E_DECODE_FAILED`, `E_FILE_NOT_FOUND`). Add the typed wrapper `src/native/audioDecoder.ts` and a Jest mock `src/native/__mocks__/audioDecoder.ts`
+- [ ] T017 [P] Scaffold the local Expo module `modules/rifflect-hand-landmarker`. It registers a VisionCamera frame-processor plugin named `detectHands` and exposes `openLandmarkWriter`, `append`, `close` and `extractLandmarksFromVideo`, with TS types in `modules/rifflect-hand-landmarker/src/index.ts` exactly as in the contract. Add the wrapper `src/native/handLandmarker.ts` (including the `detectHands` worklet binding via VisionCamera's `VisionCameraProxy.initFrameProcessorPlugin('detectHands')`) and a mock in `src/native/__mocks__/handLandmarker.ts`
+- [ ] T018 (device) Implement the Android audio decoder in `modules/rifflect-audio-decoder/android/src/main/java/expo/modules/rifflectaudiodecoder/RifflectAudioDecoderModule.kt`:
+  - **Decode**: `MediaExtractor` selects the audio track, then `MediaCodec` decodes to PCM.
+  - **Convert**: downmix to mono and resample to 22,050 Hz Float32.
+  - **Output**: write a little-endian `.f32` file to the given cache path and return `{ pcmPath, sampleRate, frames, durationMs, peak }`.
+  - **Partial files**: return `E_DECODE_FAILED` for unreadable partial files (e.g. left by a crash) rather than crashing.
+  - **`readPcmChunk`**: return an `ArrayBuffer`-backed `Float32Array`.
+- [ ] T019 [P] (device) Implement the iOS audio decoder in `modules/rifflect-audio-decoder/ios/RifflectAudioDecoderModule.swift` using `AVAssetReader` with `AVAssetReaderTrackOutput` (`kAudioFormatLinearPCM`, 32-bit float, 1 channel, 22,050 Hz). Same outputs, errors (including `E_DECODE_FAILED` for unreadable partial files) and `readPcmChunk` behaviour as T018
+- [ ] T020 (device) Implement the Android `detectHands` plugin in `modules/rifflect-hand-landmarker/android/src/main/java/expo/modules/rifflecthandlandmarker/HandLandmarkerPlugin.kt`:
+  - **Dependency**: add `com.google.mediapipe:tasks-vision` to `modules/rifflect-hand-landmarker/android/build.gradle`.
+  - **Model**: load `hand_landmarker.task` from app assets with `RunningMode.VIDEO`, `numHands = 2`, `minHandDetectionConfidence = 0.5`.
+  - **Per frame**: convert the frame to an `MPImage` (respecting orientation), call `detectForVideo(image, frame.timestamp ms)`, and return `{ tMs, hands:[{ side, score, pts:[[x,y,z]×21] }], brightness }`, where `brightness` is the mean of the Y plane / 255.
+  - **Budget**: per-call work must stay under 40 ms.
+- [ ] T021 [P] (device) Implement the iOS `detectHands` plugin in `modules/rifflect-hand-landmarker/ios/HandLandmarkerPlugin.swift`:
+  - **Dependency**: add the `MediaPipeTasksVision` pod dependency in `modules/rifflect-hand-landmarker/ios/RifflectHandLandmarker.podspec`.
+  - **Behaviour**: same model options and output shape as T020, using `MPImage(sampleBuffer:orientation:)` and `detect(videoFrame:timestampInMilliseconds:)`.
+- [ ] T022 (device) Implement the native landmark writer (`openLandmarkWriter(takeId)`, `append`, `close`) on both platforms: `modules/rifflect-hand-landmarker/android/.../LandmarkWriter.kt` and `modules/rifflect-hand-landmarker/ios/LandmarkWriter.swift`.
+  - **Format**: append JSON Lines `{ "t": tMs, "hands": [{ "side", "score", "pts" }] }` to `takes/<takeId>/landmarks.jsonl`.
+  - **Flushing**: buffer and flush at least every 1 s, so a crash loses at most 1 s of frames.
+- [ ] T023 (device) Implement `extractLandmarksFromVideo(videoPath, fps)` on both platforms in the same module files. It is the fallback when the live stream is missing:
+  - **Decode frames**: Android uses `MediaMetadataRetriever.getFrameAtTime` / `MediaCodec`. iOS uses `AVAssetImageGenerator` / `AVAssetReader`.
+  - **Detect**: run `detectForVideo` at `fps`.
+  - **Output**: write `landmarks.jsonl` and return its path.
+- [ ] T024 [P] Create the parser `src/native/landmarksFile.ts`. It reads `landmarks.jsonl` (streaming line by line), converts it to the engine type `LandmarkFrame[]` (`tMs`, `hands[].side|score|pts`), and skips malformed or truncated last lines. Tests go in `tests/unit/native/landmarksFile.test.ts`
+- [ ] T025 Create the PCM reader `src/native/pcm.ts`. It loads a decoded `.f32` file into a single `Float32Array` by calling `readPcmChunk` in chunks of 1,048,576 frames, and reports progress
+- [ ] T026 [P] Write the landmark extraction script `tools/eval/extract_landmarks.py` (Python, `mediapipe` Tasks API, the same `assets/models/hand_landmarker.task`, VIDEO mode, 12 fps). It writes `landmarks.jsonl` in the [data-model.md](./data-model.md#file-layout) format and pins its dependencies in `tools/eval/requirements.txt`. Used to produce the fixture landmarks in T043 and T094, and the evaluation corpus landmarks
+
+### Device spikes (decision gates; see [plan.md § Phase ordering](./plan.md#phase-ordering--key-risks-input-for-speckit-tasks))
+
+- [ ] T027 (human, device) **Spike A: live landmarks.** Build a dev-only screen `app/dev/spike-landmarks.tsx` that previews and records 1080p30 video with a frame processor calling `detectHands`, throttled to 12 fps. Run it for 60 s on a reference Android device (Snapdragon 7-series, 2021 or newer) and on an iPhone 12-class device. Log dropped recording frames, mean and p95 `detectHands` time, and device temperature warnings.
+  - **Results**: record them in `specs/001-guitar-practice-feedback/spikes.md`.
+  - **Gate**: pass = no dropped recording frames and p95 under 40 ms. Fail = switch US1 to post-take extraction (T023) as the primary path, and update [research.md R3](./research.md).
+  - **Crash check**: force-kill the app 20 s into a recording, on both platforms. Record whether the leftover file can be decoded (T018/T019) and played. If it can, recovery stays as specified. If not, recovery (T078) deletes unreadable partial takes with a message.
+- [ ] T028 (human, device) **Spike B: clock alignment.** On the same screen, record 10 sharp hand claps with both hands in view. Compare each clap's audio onset time (from the decoded PCM) with the frame where the landmarks show the hands closest together. The tolerance is ±20 ms.
+  - **Results**: record the mean and spread of the offset in `specs/001-guitar-practice-feedback/spikes.md`.
+  - **Gate**: if the offset is constant but non-zero, store it per platform in `src/capture/clockOffset.ts` and apply it when parsing landmarks (T024).
+
+### Analysis core (shared by all stories; see [contracts/analysis-engine.md](./contracts/analysis-engine.md))
+
+- [ ] T029 [P] Create the engine's public types in `src/analysis/types.ts`, exactly as in the contract:
+  - `AnalysisInput` (including `targetTempoBpm?` "30..300" and `accompaniment: 'auto' | 'on' | 'off'`), `LandmarkFrame`, `AnalysisResult` (including the `accompaniment` block), `FeedbackPointOut`, `AnalysisOptions` (`onProgress`, `signal`)
+  - The `IssueCode` union with every code in the contract's Issue codes table
+  - The `LimitationCode` union with every code in the contract's Limitation codes list
+- [ ] T030 [P] Create the versioned thresholds in `src/analysis/config/thresholds.ts`. Include `ENGINE_VERSION = '1.0.0+t1'` and `CONFIDENCE_FLOOR = 0.6`, plus every numeric threshold named in [research.md](./research.md) R6, R7, R9 and R16 and in the contract:
+  - **Timing**: rushing/dragging ±25 ms; tempo drift 3 BPM; off-target tempo 5%; tempo search range 60–220 BPM
+  - **Technique**: wrist strain 5 s; live-clarity confidence 0.7
+  - **Accompaniment**: ahead/behind ±20 ms; lost place ≥ ¼ beat; onset↔stroke match ±50 ms; click match ±15 ms
+  - **Scoring**: the constants in R9
+  - **No playing**: below 10% onset-active frames
+
+  Every value lives here; no magic numbers elsewhere.
+- [ ] T031 [P] Create synthetic test signal helpers in `tests/helpers/synth.ts`, all at 22,050 Hz mono `Float32Array`:
+  - A plucked-string generator (Karplus-Strong)
+  - Onset trains at given times and BPM, with jitter or a constant offset
+  - Tempo drift
+  - White and pink noise at a given SNR
+  - A buzz burst (broadband, high frequency, right after an onset)
+  - A muted note (fast decay)
+  - A speech-like noise signal with no pitched onsets
+- [ ] T032 [P] Create synthetic landmark helpers in `tests/helpers/synthLandmarks.ts`:
+  - **Hands**: fretting and picking hands with 21 points, with controllable thumb position, PIP-joint curvature, fingertip lift and wrist angle
+  - **Strumming**: picking-hand strokes at given times
+  - **Edge cases**: missing hands for given ranges, and front-camera mirroring
+
+  Output is `LandmarkFrame[]`.
+- [ ] T033 Write DSP tests in `tests/unit/analysis/dsp.test.ts`:
+  - FFT matches a naive DFT within 1e-4 for sizes 256, 1024 and 2048
+  - STFT frame count for a given length, window 1024 and hop 256
+  - Spectral flux peaks within ±1 hop of synthetic onsets
+  - Autocorrelation peaks at the known period
+- [ ] T034 Implement the DSP behind a `Dsp` interface in `src/analysis/dsp/` (`index.ts` exports the interface and the default TS implementation):
+  - `fft.ts`: in-place radix-2 real FFT
+  - `stft.ts`: Hann window, log-magnitude, band limiting
+  - `flux.ts`: spectral flux and adaptive peak picking
+  - `autocorr.ts`
+  - `chroma.ts`: 12-bin chroma from the STFT, used by US4
+
+  T033 must pass.
+
+### Job queue & app shell
+
+- [ ] T035 Write job queue tests in `tests/unit/jobs/analysisQueue.test.ts` using `tests/helpers/testDb.ts` and an injected fake runner:
+  - Jobs run one at a time, in FIFO order
+  - Status moves `pending → analysing → analysed | failed | no_playing`
+  - `failed` can be retried
+  - `loadPending()` enqueues every take with `analysisStatus = 'pending'` in `recordedAt` order; it never changes statuses (start-up status repair belongs to `src/jobs/recovery.ts`, T078)
+  - Progress events are emitted per take
+- [ ] T036 Implement the analysis job queue in `src/jobs/analysisQueue.ts`: a singleton with `enqueue(takeId)`, `retry(takeId)`, `loadPending()` and progress subscription per `takeId` (zustand store `src/jobs/analysisProgressStore.ts`). The runner function is injected so it can be replaced in tests. Analysis keeps running while the user navigates the app. T035 must pass
+- [ ] T037 Create the app shell:
+  - **Root layout** `app/_layout.tsx`: runs `useDbMigrations()`, shows a splash or error state until migrations finish, calls `analysisQueue.loadPending()` (T078 later inserts `runRecovery()` before it), and redirects to `/onboarding` when no `player_profile` row exists (redirect logic in `src/features/onboarding/useProfileGate.ts`).
+  - **Tabs**: `app/(tabs)/_layout.tsx` with the tabs Record, Library, Progress and Settings, each a placeholder screen file.
+  - **Theme**: tokens in `src/ui/theme.ts`, with light and dark modes and accessible contrast.
+
+**Checkpoint**: migrations apply on a device. Both native modules build in an Android dev build (iOS via EAS). Spike gates are recorded in `spikes.md`. DSP and queue tests pass. User-story work can start.
+
+---
+
+## Phase 3: User Story 1 - Record a practice take and get feedback (Priority: P1) 🎯 MVP
+
+**Goal**: A user records a take with the camera and microphone. Once it finishes, they get on-device written feedback on timing and technique, with scores. Each point is tied to a moment in the video.
+
+**Independent Test**: Record one 30–60 s take. The app shows at least one timing point and at least one technique point. Tapping a point seeks the video. With a target tempo, the feedback states the tempo played and how far it was from the target. Talking only gives "no playing". This works in airplane mode ([quickstart V1, V2](./quickstart.md)).
+
+### Tests for User Story 1 ⚠️ (write first and confirm they fail)
+
+- [ ] T038 [P] [US1] Write timing engine tests in `tests/analysis/timing.test.ts` using `tests/helpers/synth.ts`:
+  - Onsets are detected within ±10 ms, with recall ≥ 95% at SNR 20 dB
+  - Tempo is estimated within ±1 BPM for 60, 90, 120, 160 and 200 BPM
+  - A target tempo resolves the half/double ambiguity (e.g. a 70 BPM target on a 140 BPM eighth-note pattern gives 70)
+  - A constant −40 ms offset on beat 4 emits `timing.rushing` with `metrics.beat = 4`; +40 ms emits `timing.dragging`
+  - A 6 BPM linear increase emits `timing.tempo_drift_up`
+  - Played 86 vs target 80 emits `timing.off_target_tempo` with `targetDeltaBpm ≈ 6`
+  - A steady, accurate input emits `timing.steady`
+- [ ] T039 [P] [US1] Write technique engine tests in `tests/analysis/technique.test.ts` using `tests/helpers/synthLandmarks.ts` and `synth.ts`:
+  - Each landmark rule emits its code: `technique.fret_thumb_over_neck`, `technique.flat_fingers`, `technique.fingers_lifting_high`, `technique.wrist_strain` (held > 5 s only), `technique.inconsistent_strum` and `technique.stopped_strum_motion`
+  - Buzz and muted synthetic notes emit `technique.fret_buzz` and `technique.muted_notes`
+  - A clean signal emits `technique.clean`
+  - With `handedness = 'left'` and mirrored front-camera input, fretting and picking roles are assigned correctly (contract guarantee 5)
+  - Missing hands for 50% of the take give `coverage.frettingHand ≈ 0.5` and a `hands_not_visible` limitation with the correct `fromMs` and `toMs`
+- [ ] T040 [P] [US1] Write engine contract tests in `tests/analysis/contract.test.ts` for guarantees 1–7 in [contracts/analysis-engine.md](./contracts/analysis-engine.md#guarantees-tested):
+  - A speech-like or silent input gives `status = 'no_playing'`, `points = []` and null scores
+  - An analysed result has ≥ 1 timing and ≥ 1 technique point, or a limitation plus a null score for that category
+  - Every `startMs` is in `[0, durationMs]`
+  - The same input always gives the same output (deep equal)
+  - Text depends only on `issueCode`, metrics and `skillLevel` (beginner and advanced wording differ for the same finding)
+  - No point has `confidence` < 0.6
+  - `summary.length` ≤ 140
+- [ ] T041 [P] [US1] Write the fixture-suite runner in `tests/analysis/fixtures.test.ts`:
+  - **Discovery**: finds each `tests/fixtures/<name>/` with `audio.wav` (mono, any sample rate, resampled to 22,050 in the test helper `tests/helpers/wav.ts`), an optional `landmarks.jsonl`, `input.json` (player, cameraPosition, targetTempoBpm, accompaniment) and `expected.json`.
+  - **`expected.json`**: `mustInclude` issue codes, `mustNotInclude` codes, an optional score range, and an expected status.
+  - **Check**: asserts each expectation.
+  - **Empty folder**: the suite passes with zero fixtures.
+- [ ] T042 [P] [US1] Write repository tests in `tests/unit/data/takesReportsRepo.test.ts`:
+  - **Take creation**: copies `handednessAtRecording` and `skillLevelAtRecording` from the profile.
+  - **Save validation**: "`saved = true` requires `captureStatus = complete` or `interrupted = true`".
+  - **Report persistence**:
+    - `saveReport(takeId, AnalysisResult)` writes the report and points.
+    - It replaces any existing report for that take.
+    - It rejects a point with `startMs` outside "`[0, take.durationMs]`".
+  - **Cascade**: deleting a report cascades to its points.
+- [ ] T043 [US1] (human) Record at least 6 real fixture clips (30–60 s, phone on a stand, front camera) and add them as `tests/fixtures/<name>/` with `audio.wav`, `landmarks.jsonl` (from `tools/eval/extract_landmarks.py`, T026), `input.json` and `expected.json`:
+  - `steady-strum-80`
+  - `rushing-beat4-80`
+  - `dragging-90`
+  - `buzzing-f-barre`
+  - `muted-notes`
+  - `talking-only`
+
+  Clips must not contain faces or speech that identifies a person; crop or blur if needed.
+
+### Implementation for User Story 1: analysis engine
+
+- [ ] T044 [US1] Implement onset detection in `src/analysis/timing/onsets.ts`:
+  - **Method**: log-magnitude STFT, window 1024, hop 256, band-limited to 80 Hz–1.5 kHz; spectral flux; adaptive median-threshold peak picking.
+  - **Output**: onset times in ms, onset strength envelope, and fraction of onset-active frames.
+- [ ] T045 [US1] Implement tempo estimation and beat tracking in `src/analysis/timing/beatGrid.ts`:
+  - **Tempo**: autocorrelation of the onset-strength envelope over 60–220 BPM. An optional `targetTempoBpm` biases half/double resolution.
+  - **Grid**: dynamic-programming beat tracker producing a beat grid with local tempo.
+  - **Output**: `{ beatTimesMs, bpm, localBpm[] }`, or null if no stable tempo (which raises `tempo_not_detected`).
+- [ ] T046 [US1] Implement timing metrics and findings in `src/analysis/timing/metrics.ts` and `src/analysis/timing/findings.ts`:
+  - **Subdivision**: pick the best subdivision (beat, eighth or sixteenth note).
+  - **Offsets**: signed offset per onset, mean absolute offset, offset per beat position, within-beat variance, and drift (max − min of local tempo).
+  - **Findings**: emit `timing.steady`, `timing.rushing` (< −25 ms), `timing.dragging` (> +25 ms), `timing.uneven_subdivision`, `timing.tempo_drift_up` / `timing.tempo_drift_down` (> 3 BPM) and `timing.off_target_tempo` (> 5%). Each has `startMs`, `endMs`, metrics, severity and confidence.
+
+  T038 must pass.
+- [ ] T047 [P] [US1] Implement hand-role assignment in `src/analysis/technique/hands.ts`:
+  - **Labels**: correct mirrored MediaPipe `side` labels for the front camera.
+  - **Roles**: map handedness to roles (right-handed: fretting = left hand).
+  - **Smoothing**: exponential smoothing of points.
+  - **Coverage**: per-role coverage, and ranges where a hand is missing or the fretting hand is out of frame.
+
+  Also export the stroke detector `detectStrokes(pickingHandFrames)` (wrist velocity peak followed by direction reversal), which US4 reuses.
+- [ ] T048 [US1] Implement the fretting-hand analyser in `src/analysis/technique/frettingHand.ts`: `technique.fret_thumb_over_neck` (severity `info` when chord-like stable shapes dominate), `technique.flat_fingers`, `technique.fingers_lifting_high` and `technique.wrist_strain` (extreme flexion held > 5 s), each with a confidence based on visibility
+- [ ] T049 [US1] Implement the picking-hand analyser in `src/analysis/technique/pickingHand.ts`: `technique.inconsistent_strum` (variance of stroke amplitude and timing) and `technique.stopped_strum_motion` (pauses in an otherwise periodic stroke pattern), using `detectStrokes` from T047 and the onsets
+- [ ] T050 [P] [US1] Implement the clarity analyser in `src/analysis/technique/clarity.ts`, emitting `technique.fret_buzz`, `technique.muted_notes`, `technique.unwanted_open_strings` and `technique.clean`:
+  - **Inputs**: a signal, an onset list and an optional per-onset "live confidence" (so US4 can pass the separated live residual and suppress uncertain onsets).
+  - **Signals**: broadband high-frequency energy plus inharmonicity just after the onset; decay rate; persistent low open-string partials.
+- [ ] T051 [P] [US1] Implement the posture checks and limitation builder:
+  - **`src/analysis/technique/posture.ts`**: sustained extreme wrist angles, and the frame being cut off. Otherwise emit `posture_not_assessed`.
+  - **`src/analysis/limitations.ts`**: build `limitations` entries for `hands_not_visible`, `fretting_hand_out_of_frame`, `low_light` (brightness from landmarks), `noisy_audio` (SNR estimate), `clipping_audio` (peak ≥ 0.99), `landmarks_missing`, `tempo_not_detected` and `take_interrupted`, each with a user-facing message.
+- [ ] T052 [P] [US1] Implement scoring in `src/analysis/scoring/scores.ts`, using the formulas in [research.md R9](./research.md#r9-scores-fr-010):
+  - **Timing**: `100 × clamp(1 − (meanAbsOffsetMs − 10)/90, 0, 1)` minus up to 15 points for drift over 3 BPM.
+  - **Technique**: 100 minus the severity-weighted findings per minute, floored at 0, computed only from assessed aspects.
+  - **Not enough data**: return `null` when coverage is too low.
+- [ ] T053 [P] [US1] Implement the feedback text catalogue in `src/analysis/feedback-text/catalogue.ts` and `src/analysis/feedback-text/render.ts`:
+  - **Templates**: for every `IssueCode`, an observation template and a suggestion template for each of `beginner`, `intermediate` and `advanced`, with `{placeholders}` filled from metrics. Times are formatted like "around 0:42", bars like "bars 3–6", and ms values rounded to 5.
+  - **Summary**: `buildSummary(points, skill)` writes a summary of at most 140 chars from the top 1–3 points.
+  - **Recurring text**: `recurringText(code, n, of)` for US3, e.g. "Rushing on beat 4 in 6 of your last 8 takes".
+- [ ] T054 [US1] Implement the orchestrator `analyseTake` in `src/analysis/index.ts`:
+  1. Run DSP and onsets.
+  2. If onset-active frames are below 10%, return `no_playing`.
+  3. Otherwise run the beat grid, timing findings, hand roles, technique analysers and limitations.
+  4. Drop findings below the confidence floor of 0.6.
+  5. Ensure each category has ≥ 1 point or a limitation plus a null score.
+  6. Score, render text, and sort points by severity, then time.
+
+  The orchestrator reports progress through `onProgress` at each stage and honours `signal.aborted`. Leave a clearly marked hook for the accompaniment stage: when `input.accompaniment === 'off'`, US1 behaves as solo; US4 fills the hook in. T039, T040 and T041 must pass.
+
+### Implementation for User Story 1: capture, persistence & UI
+
+- [ ] T055 [P] [US1] Implement the profile repository in `src/data/repositories/profileRepo.ts`: `getProfile()` and `upsertProfile({ handedness, skillLevel, preferredCamera, lastAccompanimentSetting })` with `id = 'me'`, validated against the schema enums
+- [ ] T056 [US1] Implement the takes and reports repositories in `src/data/repositories/takesRepo.ts` and `src/data/repositories/reportsRepo.ts`:
+  - **Takes**: `createTake(...)` (`captureStatus = 'recording'`, `analysisStatus = 'pending'`, `saved = false`, copies of profile handedness and skill), `completeCapture(id, durationMs, fileSizeBytes, landmarksPath | null)` (sets `too_short` when "`durationMs < 5,000`"), `markInterrupted(id)`, `setAnalysisStatus(id, status)` and `getTake(id)`
+  - **Reports**: `saveReport(takeId, result: AnalysisResult, processingMs)`, which maps `AnalysisResult` to rows and replaces any existing report, and `getReportWithPoints(takeId)`
+
+  T042 must pass.
+- [ ] T057 [US1] Build the onboarding route `app/onboarding.tsx` with steps in `src/features/onboarding/`:
+  - **Steps**: Welcome → permissions explainer (requests camera and microphone via VisionCamera) → handedness (`onboarding-handedness-left` / `onboarding-handedness-right`) → skill level (`onboarding-skill-beginner|intermediate|advanced`) → save the profile → `/(tabs)/record`
+  - **Permission denied**: show an explanation and an "Open Settings" button (`permission-open-settings`) via `Linking.openSettings()`; never attempt to record
+- [ ] T058 [P] [US1] Implement the camera session helper in `src/capture/cameraSession.ts`. It picks the front or back device from the profile, a 1080p30 format with audio, and the frame-processor fps cap. It exposes a hook `useCameraSession()` for the Record screen
+- [ ] T059 [US1] Implement the framing check in `src/capture/framingCheck.ts`:
+  - **Inputs**: a pure function over the last 30 `HandsResult` frames.
+  - **Statuses**:
+    - `ok` when both hands are detected in ≥ 80% of frames, the fretting hand's landmarks are all inside [0.02, 0.98], and brightness is ≥ the threshold.
+    - `hands_missing`, `fretting_out_of_frame` or `low_light` otherwise.
+  - **Hint**: a repositioning hint string for each status.
+  - **Wiring**: wire it to a frame processor via `useFramingStatus()` in `src/capture/useFramingStatus.ts` (worklet → JS with `runOnJS`).
+
+  Tests go in `tests/unit/capture/framingCheck.test.ts`.
+- [ ] T060 [US1] Implement the recording controller in `src/capture/recordingController.ts`:
+  - **`start(opts)`**:
+    - Check free space (≥ 600 MB, or the estimated size of a 5-minute take, else block with the storage warning).
+    - Create the take row (T056) and its folder (T015).
+    - Open the landmark writer.
+    - Start VisionCamera `startRecording` to the take folder.
+    - Run the frame processor with `detectHands` at 12 fps (8 fps on low-tier devices, via `getDeviceTier()` from `src/capture/deviceTier.ts`; create it here as a stub returning `'normal'`, and T108 implements it) and append each result.
+    - Auto-stop at 300,000 ms.
+  - **`stop()`**: finalise the video, close the writer, call `completeCapture`, and enqueue analysis unless the take is `too_short`.
+  - **Interruption**: `AppState` changes to background or recording errors stop the recording and call `markInterrupted`.
+- [ ] T061 [US1] Build the Record screen in `app/(tabs)/record.tsx` with components in `src/features/record/`:
+  - **Camera and framing**: camera preview, plus a framing checklist (`framing-status` showing the status and hint).
+  - **Tempo**: optional target tempo (`tempo-input`, an integer that rejects values outside "30–300", empty = none).
+  - **Recording**: `record-button` with an elapsed timer and the 5:00 maximum, and `storage-warning` when free space is low.
+  - **After stopping**: navigate to `/take/[id]/analysing`.
+- [ ] T062 [US1] Implement the analysis runner in `src/jobs/runAnalysis.ts`, injected into the queue (T036):
+  1. Load the take and profile snapshot.
+  2. Call `decodeAudioTrack(video, { sampleRate: 22050, mono: true })` and read the PCM (T025).
+  3. Parse landmarks (T024). If `landmarksPath` is null, call `extractLandmarksFromVideo(video, 12)` first.
+  4. Run `analyseTake` in a `react-native-worklets-core` background runtime, forwarding progress and cancellation.
+  5. Call `saveReport` with `processingMs`.
+  6. Set the status to `analysed` or `no_playing`.
+  7. Delete the PCM cache.
+
+  Any native error code sets `failed`.
+- [ ] T063 [US1] Build the analysing screen `app/take/[id]/analysing.tsx`. It shows progress from the progress store (`analysis-progress`) and a "Leave – we'll let you know when it's ready" action (`analysis-leave`), which records the take ID in the progress store's `leftTakeIds`. On completion it does `router.replace('/take/[id]')`. On `failed` it shows a Retry button that calls `analysisQueue.retry`
+- [ ] T064 [US1] Build the analysis-done notice in `src/features/feedback/AnalysisDoneToast.tsx`, mounted in `app/_layout.tsx`. It subscribes to the progress store and, when a take in `leftTakeIds` finishes (`analysed`, `no_playing` or `failed`), shows `analysis-done-toast` ("Feedback ready – View") on whatever screen is open. Tapping it opens `/take/[id]` and removes the ID from `leftTakeIds`
+- [ ] T065 [US1] Build the feedback screen `app/take/[id]/index.tsx` with components in `src/features/feedback/`:
+  - **Player**: `expo-video` with a seek API.
+  - **Scores**: `score-timing` and `score-technique` (show "Not enough data" when null), plus the summary.
+  - **Points**: the list of `feedback-point-<i>` items (category icon, observation, suggestion, time). Tapping one seeks to `startMs` and plays.
+  - **Limitations**: a `limitations` section.
+  - **Special states**: dedicated states for `no_playing` ("We couldn't find playing to analyse") and `too_short` ("Takes need to be at least 5 seconds").
+- [ ] T066 [P] [US1] Write a component test in `tests/components/feedbackScreen.test.tsx`: a mocked report renders scores, points and limitations; tapping `feedback-point-0` calls the player's seek with `startMs`; null scores render "Not enough data"; the `no_playing` state hides the points list
+- [ ] T067 [US1] Build a minimal Settings screen `app/(tabs)/settings.tsx` with components in `src/features/settings/`: handedness (`settings-handedness`), skill level (`settings-skill`) and preferred camera, persisted via `profileRepo` (FR-005)
+- [ ] T068 [US1] Write the Maestro flows `e2e/v1-first-take.yaml` (onboarding → Record → record 10 s → wait for feedback → assert `score-timing` visible → tap `feedback-point-0`) and `e2e/v2-too-short.yaml` (record 3 s → assert the minimum-length message)
+
+**Checkpoint**: US1 is fully functional on its own. Quickstart V1 and V2 pass on an Android device and an iPhone (EAS dev build), including in airplane mode. This is the MVP.
+
+---
+
+## Phase 4: User Story 2 - Save and revisit takes on the phone (Priority: P2)
+
+**Goal**: Users save or discard takes, browse a library newest first, search by label, rename or relabel, delete, export or share, see storage used, and recover interrupted takes.
+
+**Independent Test**: Save several labelled takes, discard one, force-quit and reopen in airplane mode. The saved takes, with their video and feedback, are listed newest first and play. Deleting one frees storage ([quickstart V3, V5](./quickstart.md)).
+
+### Tests for User Story 2 ⚠️
+
+- [ ] T069 [P] [US2] Write practice item and library repository tests in `tests/unit/data/libraryRepo.test.ts`:
+  - **Item names**: "1–60 chars, trimmed, unique ignoring case" (creating "G–C–D" after "g–c–d" returns the existing item).
+  - **Deleting an item**: sets its takes' `practiceItemId` to null, and they show as "Unlabelled".
+  - **Library list**: only `saved = true` takes, ordered by `recordedAt DESC`, with label, duration and summary joined.
+  - **Search**: by label (case-insensitive substring).
+  - **Titles**: "≤ 80 chars".
+  - **Drafts**: `listDrafts()` returns only `saved = false` takes that are not interrupted, newest first, each with its removal time (`createdAt` + 24 h).
+  - **`lastUsedAt`**: set when a take is saved with that item.
+- [ ] T070 [P] [US2] Write recovery and cleanup tests in `tests/unit/jobs/recovery.test.ts`:
+  - On start, `captureStatus = 'recording'` becomes `partial` with `interrupted = true`
+  - `analysing` becomes `pending` and is re-queued
+  - Drafts with `interrupted = true` are listed for `/recover`
+  - "Any other draft older than 24 h is deleted" (row and folder)
+  - A saved take is never touched
+
+### Implementation for User Story 2
+
+- [ ] T071 [P] [US2] Implement the practice items repository in `src/data/repositories/practiceItemsRepo.ts`: `listItems()` (by `lastUsedAt DESC`), `findOrCreate(name)` (trim, validate "1–60 chars", case-insensitive match), `rename` and `delete`
+- [ ] T072 [US2] Extend `src/data/repositories/takesRepo.ts`:
+  - **`saveTake(id, { practiceItemId?, title? })`**: enforces the save rule, sets `saved = true`, updates the item's `lastUsedAt`, and generates `thumb.jpg` via `expo-video-thumbnails` at 1 s.
+  - **`discardDraft(id)`**: deletes the row and the folder; nothing is stored.
+  - **`deleteTake(id)`**: deletes the row (cascading to the report and points) and the folder.
+  - **`listLibrary({ search? })`**, **`updateTitle`**, **`setPracticeItem`**.
+
+  T069 must pass.
+- [ ] T073 [US2] Add Save, Discard and Label to the feedback screen in `src/features/feedback/TakeActions.tsx`:
+  - **Controls**: `save-take`, `discard-take` (confirm), and `label-picker` (pick an existing item or type a new one).
+  - **Leaving a draft**: intercept leaving `/take/[id]` while the take is unsaved and prompt Save / Discard / Keep for now (expo-router `usePreventRemove`).
+- [ ] T074 [US2] Implement storage accounting in `src/data/files/storage.ts`:
+  - **Usage**: `totalTakesBytes()` sums `take.fileSizeBytes`.
+  - **Space check**: `hasSpaceFor(bytes)` uses `freeDiskBytes()`.
+  - **Low-space threshold**: `LOW_SPACE_BYTES` = 600 MB.
+  - **Wiring**: use it on the Record screen (T061, `storage-warning` before recording) and in `saveTake` (warn before saving) (FR-017).
+- [ ] T075 [US2] Build the Library screen `app/(tabs)/library.tsx` with components in `src/features/library/`:
+  - **List**: drizzle live query (`useLiveQuery`) of `listLibrary`, items `library-item-<id>` showing the thumbnail, date, duration, label or "Unlabelled", the first line of the summary, and both scores.
+  - **Search**: `library-search`.
+  - **Storage**: a `storage-used` footer.
+  - **Empty state**: shown when there are no saved takes.
+  - **Navigation**: tapping an item opens `/take/[id]`.
+- [ ] T076 [US2] Build the "Not saved yet" section in `src/features/library/UnsavedSection.tsx`, shown above the saved list on the Library screen (`library-unsaved`). Add `listDrafts()` to `src/data/repositories/takesRepo.ts`. Each item `unsaved-item-<id>` shows the date, duration, analysis status and "Removed in Xh", with open, save and discard actions (save opens the label picker from T073). The section is hidden when there are no drafts (FR-015, Story 2 scenario 5)
+- [ ] T077 [US2] Build the edit screen `app/take/[id]/edit.tsx`:
+  - **Edit**: rename (title "≤ 80 chars") and relabel.
+  - **Delete**: `delete-take`, then `confirm-delete`, then return to the library.
+  - **Export**: `export-to-photos` via `expo-media-library` `saveToLibraryAsync` (request add-only permission when used).
+  - **Share**: `share-take` via `expo-sharing`.
+- [ ] T078 [US2] Implement start-up recovery in `src/jobs/recovery.ts` (exports `runRecovery()`, the single owner of start-up status repair; called from `app/_layout.tsx` after migrations, before `analysisQueue.loadPending()`), and the `/recover` route `app/recover.tsx`. The route lists the interrupted drafts with `recover-analyse-<id>` (enqueue analysis; partial video accepted, which raises a `take_interrupted` limitation) and `recover-discard-<id>`. If an interrupted take's video can't be decoded (the decoder returns `E_DECODE_FAILED` or `E_NO_AUDIO_TRACK`, e.g. after a crash or power loss), `runRecovery()` deletes the take and folder, and `/recover` shows `recover-lost-notice` ("A recording was lost because the app closed unexpectedly"). Add a case for this to T070. T070 must pass
+- [ ] T079 [US2] Write the Maestro flows `e2e/v3-library.yaml` (record → save with a label → second take discarded → library shows one item → delete with confirm → empty state) and `e2e/v5-interruptions.yaml` (start recording → background the app → relaunch → `/recover` shows the take)
+
+**Checkpoint**: US1 and US2 both work. Quickstart V3 and V5 pass. Saved takes survive restarts and airplane mode (SC-007).
+
+---
+
+## Phase 5: User Story 4 - Get feedback while playing over a loop or backing track (Priority: P2)
+
+**Goal**: Detect loops, backing tracks and clicks. Use the accompaniment's beat as the timing reference, separate the live playing (REPET plus picking-hand attribution), and give feedback only on the live part, with a separation confidence. The user can re-analyse a take as solo or accompanied.
+
+**Independent Test**: Record lead over a 4-bar loop with deliberate rushing in bars 5–6 and a buzz in the loop only. The app reports "Loop detected" with the right length, points to bars 5–6 relative to the loop, and doesn't report the loop's buzz ([quickstart V6](./quickstart.md)).
+
+**Depends on**: US1's engine (T044–T054) and landmark capture. Independent of US2.
+
+### Tests for User Story 4 ⚠️
+
+- [ ] T080 [P] [US4] Create the synthetic mix helper `tests/helpers/synthMix.ts`. It builds a solo lead with known onsets (synth.ts), and lead-plus-loop mixes with the true live onsets and stroke landmarks attached. Mix types:
+  - **Loop**: a repeating rhythm loop (length 2–16 s) at gain ratios 0.5×, 1× and 2× the lead
+  - **Overdub**: the loop gains a layer halfway through
+  - **Click track**: 3–4 kHz clicks
+  - **Non-repeating backing**: drums plus bass-like content
+  - **Unison**: the lead doubles the loop for 2 bars
+  - **Loop only**: no lead
+- [ ] T081 [P] [US4] Write accompaniment detection tests in `tests/analysis/accompaniment/detect.test.ts`:
+  - **Loop length**: estimated within ±10 ms for loops of 2, 4.5 and 12 s
+  - **Classification**: `loop`, `backing`, `click` and `none` on the matching mixes
+  - **Solo takes**: no false `loop` or `backing` on 20 synthetic solo variants (≤ 5% overall, SC-008)
+- [ ] T082 [P] [US4] Write separation and attribution tests in `tests/analysis/accompaniment/separate.test.ts`:
+  - **Recall**: live-onset recall ≥ 90% and loop-onset leakage ≤ 10% at a 1× gain ratio
+  - **Loop buzz**: a buzz placed only in the loop produces no `technique.fret_buzz` point
+  - **Confidence**: `separationConfidence` is `good` at 0.5×, at most `partial` at 2×, and `poor` with no stroke landmarks and a 2× loop
+  - **Unison**: emits the `unison_with_accompaniment` limitation for the doubled bars
+- [ ] T083 [P] [US4] Write accompaniment contract tests in `tests/analysis/accompaniment/contract.test.ts` for guarantees 8–11 and the loop-only part of guarantee 1:
+  - `accompaniment: 'off'` gives a result deep-equal to the solo pipeline
+  - `'on'` with no repetition gives `kind = 'backing'`
+  - With accompaniment, `timingReference = 'accompaniment'`, and no accompaniment onset appears in any timing point's metrics
+  - `poor` separation gives no clarity points and an `accompaniment_separation_low` limitation
+  - The landmark analysers' output is identical between modes
+  - A loop-only take gives `no_playing`
+
+### Implementation for User Story 4
+
+- [ ] T084 [US4] Implement detection in `src/analysis/accompaniment/detect.ts`:
+  - **Features**: beat-synchronous chroma and spectral features (dsp/chroma.ts).
+  - **Repetition**: self-similarity, then autocorrelation over lags 1–60 s, then a sharpness and periodicity score. Refine the loop length to sample accuracy by cross-correlating the waveform around the peak lag.
+  - **Click**: a regular train of short broadband transients centred in 2–5 kHz.
+  - **Classification**: `loop` / `backing` / `click` / `none`, with thresholds from `thresholds.ts`.
+
+  T081 must pass.
+- [ ] T085 [US4] Implement the accompaniment timing grid in `src/analysis/accompaniment/grid.ts`:
+  - **Loop**: bars = loop length / n for the whole number n (1–8) that best explains the repeating part's onsets; the beat count is chosen likewise; phase is taken from the strongest repeating onsets.
+  - **Click**: the click times are the grid.
+  - **Backing**: the beat tracker from T045 run on the full mix.
+
+  Output uses the same grid type as `beatGrid.ts`.
+- [ ] T086 [US4] Implement REPET separation in `src/analysis/accompaniment/repet.ts`:
+  - **Windowed REPET for loops**: per-bin median of the magnitude spectrogram across a sliding window of 3–5 loop cycles gives the repeating model; a soft mask gives the live residual STFT and residual onset envelope.
+  - **REPET-Sim for `backing`**: median over the k most similar frames.
+  - **Changes**: mark sections where the model changes abruptly as `accompaniment_changed`.
+  - **Short takes**: emit `too_few_loop_cycles` when there are fewer than 2 cycles, and fall back to backing handling.
+  - **Memory**: process in chunks so peak memory stays within the 300 MB limit for a 5-minute take.
+- [ ] T087 [P] [US4] Implement click removal in `src/analysis/accompaniment/click.ts`: drop onsets within ±15 ms of a detected click whose spectrum is click-like; keep guitar onsets that coincide with clicks when their low-band energy is above the threshold
+- [ ] T088 [US4] Implement attribution in `src/analysis/accompaniment/attribution.ts`:
+  - **Matching**: match residual onsets to picking-hand strokes from `detectStrokes` (T047) within ±50 ms.
+  - **Per-onset confidence**:
+    - High for matched onsets.
+    - Medium for unmatched onsets with strong residual energy (probable legato).
+    - Unmatched onsets with weak residual energy are dropped.
+  - **`liveOnsetMatchRate`**: computed from the matches.
+  - **`separationConfidence`**: `good` / `partial` / `poor`, from the mask energy ratio and the match rate.
+  - **Limitations**: `unison_with_accompaniment` when the residual is near zero while strokes continue, and `accompaniment_too_loud` when the mask ratio is below the threshold.
+- [ ] T089 [US4] Implement accompaniment timing findings in `src/analysis/accompaniment/findings.ts`. Measure live onsets against the accompaniment grid, and emit:
+  - `timing.locked_to_accompaniment`
+  - `timing.ahead_of_accompaniment` (< −20 ms) and `timing.behind_accompaniment` (> +20 ms), overall or per beat position
+  - `timing.lost_place_in_loop` (a stretch shifted consistently by ≥ ¼ beat)
+
+  Add observation and suggestion templates for these codes and for the new limitation codes in `src/analysis/feedback-text/catalogue.ts`.
+- [ ] T090 [US4] Fill in the accompaniment stage hook in `src/analysis/index.ts`:
+  - **Detection**: `off` skips the stage. `on` forces it, and falls back to `backing` when there is no repetition. `auto` runs it only when something is detected.
+  - **Grid and onsets**: when the stage runs, use the accompaniment grid and the live residual onsets (`timingReference = 'accompaniment'`).
+  - **Clarity**: pass per-onset live confidence to clarity (T050) so only onsets with confidence ≥ 0.7 count. Emit no clarity points when confidence is `poor`.
+  - **Output**: populate `result.accompaniment`.
+  - **No playing**: a loop-only take (no live onsets) is `no_playing`.
+  - **Time budget**: stays within the 10 s engine budget for 60 s of input (measured in T114).
+
+  T082 and T083 must pass, and T038–T041 must still pass.
+- [ ] T091 [US4] Persist accompaniment results:
+  - **Reports**: update `saveReport` in `src/data/repositories/reportsRepo.ts` to write `accompanimentKind`, `loopLengthMs`, `timingReference`, `separationConfidence` and `liveOnsetMatchRate`.
+  - **Takes**: add `setAccompanimentSetting(id, 'auto' | 'on' | 'off')` to `takesRepo.ts`.
+  - **Runner**: pass `take.accompanimentSetting` into `AnalysisInput.accompaniment` in `src/jobs/runAnalysis.ts`.
+  - **Tests**: extend `tests/unit/data/takesReportsRepo.test.ts`.
+- [ ] T092 [US4] Add the accompaniment setting to the Record screen: a segmented control `accompaniment-setting` (Auto / On / Off) in `src/features/record/AccompanimentSetting.tsx`. Pre-select it from `profile.lastAccompanimentSetting` (default `auto`), and write the chosen value back via `profileRepo.upsertProfile` when recording starts. Pass it to `recordingController.start` (FR-024). Show a tip when On: "Point the camera at your hands; keep the loop a bit quieter than your live playing"
+- [ ] T093 [US4] Add the accompaniment banner and re-analysis to the feedback screen:
+  - **Banner**: `src/features/feedback/AccompanimentBanner.tsx` (`accompaniment-banner`) shows "Loop detected · 8.0 s loop · Separation: good", or Backing track / Click.
+  - **Re-analysis**: `reanalyse-as-solo` and `reanalyse-with-accompaniment` call `setAccompanimentSetting`, then `analysisQueue.enqueue`, then navigate to `/take/[id]/analysing`. The new report replaces the old one (FR-029).
+- [ ] T094 [US4] (human) Record at least 4 real lead-over-loop fixtures with a loop pedal through an amp and add them to `tests/fixtures/`:
+  - `loop-lead-steady`
+  - `loop-lead-rushing-bars5-6`
+  - `loop-with-buzz-in-loop`
+  - `click-track-strum`
+
+  Each needs an `expected.json` (mustInclude / mustNotInclude) and `input.json` with `accompaniment: 'auto'`.
+- [ ] T095 [US4] Write the Maestro flow `e2e/v6-loop.yaml`: set `accompaniment-setting` to On, record, then assert `accompaniment-banner` is visible. Tap `reanalyse-as-solo` and assert the banner disappears after re-analysis
+
+**Checkpoint**: US4 works with US1 (and with US2 if present). Quickstart V6 passes on a device with a real loop pedal.
+
+---
+
+## Phase 6: User Story 3 - Track progress over time (Priority: P3)
+
+**Goal**: Score trends per practice item and overall (filterable by solo or accompanied), recurring issues, practice stats, and side-by-side comparison of two takes.
+
+**Independent Test**: Save ≥ 5 takes of one label over several days, with deliberate rushing in some. The Progress view shows timing and technique trends, lists `timing.rushing` as recurring with a count, and compare shows two takes side by side ([quickstart V4](./quickstart.md)).
+
+**Depends on**: saved takes from US2 (the `saved` flag and labels). The filter uses `accompanimentKind` from the schema; US4 is not required, since without it every take is `none`.
+
+### Tests for User Story 3 ⚠️
+
+- [ ] T096 [P] [US3] Write progress query tests in `tests/unit/data/progressRepo.test.ts` with seeded takes, reports and points:
+  - **Score series**: per item and overall, only saved and analysed takes, ordered by `recordedAt`, null scores kept as gaps.
+  - **Filters**: `all` / `solo` (`accompanimentKind = none`) / `accompanied`.
+  - **Recurring issues**, over the last N = 10 saved, analysed takes: an issue is recurring when "`occurrences ≥ 3` and `occurrences / windowSize ≥ 0.4`". `firstSeenAt` and `lastSeenAt` are correct, and `typicalSeverity` is the most common severity.
+  - **Stats**: take count, total `durationMs` of saved takes, and distinct local days with a take per ISO week.
+  - **Not enough data**: `needsMoreTakes` is true when there are fewer than 2 data points.
+
+### Implementation for User Story 3
+
+- [ ] T097 [US3] Implement the progress repository in `src/data/repositories/progressRepo.ts`: `scoreSeries({ practiceItemId?, filter })`, `recurringIssues({ practiceItemId?, window = 10 })` (with the display text from `recurringText` in T053) and `practiceStats({ practiceItemId? })`. T096 must pass
+- [ ] T098 [US3] Build the Progress screen `app/(tabs)/progress.tsx` with components in `src/features/progress/`:
+  - **Item picker**: `progress-item-picker` (All, or a practice item).
+  - **Filter**: `progress-accompaniment-filter` (All / Solo / Accompanied).
+  - **Chart**: `chart-scores`, a victory-native line chart of timing and technique over time, with gaps for null scores and point markers by accompaniment kind.
+  - **Recurring issues**: a list with `recurring-issue-<code>` items.
+  - **Stats**: `stats-takes`, `stats-minutes`, `stats-days-per-week`.
+  - **Not enough data**: a `need-more-takes` message when the series has fewer than 2 points.
+- [ ] T099 [US3] Build the compare screen `app/compare.tsx` (`/compare?a=<id>&b=<id>`), with components in `src/features/compare/`:
+  - **Layout**: two `expo-video` players and two feedback summaries, `compare-a` and `compare-b` (stacked on narrow phones, side by side in landscape), with scores and top points for each take.
+  - **Entry points**: from the library via a "Compare" multi-select mode in `src/features/library/` (select exactly 2), and from Progress ("Compare first and latest").
+- [ ] T100 [P] [US3] Write a component test in `tests/components/progressScreen.test.tsx`: `need-more-takes` appears with 1 take; the chart and a recurring issue render with seeded data; changing the filter updates the series
+- [ ] T101 [US3] Write the Maestro flow `e2e/v4-progress.yaml`: seed via the dev-only seeding route `app/dev/seed.tsx` (creates labelled takes with reports from fixtures), open Progress, assert `chart-scores` and a `recurring-issue-timing.rushing` item, then open compare and assert `compare-a` and `compare-b`
+
+**Checkpoint**: all four user stories work on their own. Quickstart V1–V6 pass.
+
+---
+
+## Phase 7: Polish & Cross-Cutting Concerns
+
+**Purpose**: Accuracy evaluation (SC-003, SC-008, SC-009), performance (SC-002), accessibility, robustness and documentation.
+
+- [ ] T102 [P] Write the evaluation protocol in `tools/eval/README.md`:
+  - **Recording guidelines**: phone placement, a 30–90 s clip length, a mix of solo and lead-over-loop takes, and several guitars, amps and rooms.
+  - **Consent and privacy**: no faces, no identifying speech, and the corpus is stored outside git (`tools/eval/corpus/` is git-ignored).
+  - **Label format**: `labels.json` per take: teacher-marked timing issues and technique issues as `{ issueCode, startMs, endMs }`, plus `accompaniment: none|loop|backing|click`.
+  - **Agreement rule**: a finding agrees when its code matches and its time overlaps within ±1 s.
+  - **Complete labelling**: teachers label every issue they hear or see, not only the most important. Precision (T103) is only accurate if the labels are complete.
+- [ ] T103 Write the evaluation harness `tools/eval/run.ts` (`npm run eval -- --corpus <path>`):
+  1. Decode each take's audio (ffmpeg via `fluent-ffmpeg`, or a provided WAV).
+  2. Load landmarks and run `analyseTake`.
+  3. Compare the findings with the labels.
+  4. Print and write `tools/eval/output/report.json`:
+     - timing and technique **precision**: the share of the app's findings that match a teacher label (same `issueCode` family, time overlap within ±1 s). This is the SC-003 measure (≥ 80% and ≥ 70%)
+     - timing and technique **recall**: the share of teacher labels the app found. Reported for diagnosis, not as a target
+     - loop detection rate and solo false-alarm rate (SC-008: ≥ 90% and ≤ 5%)
+     - lead-over-loop timing precision and the share of clarity findings that came from the accompaniment (SC-009: ≥ 75% and ≤ 10%)
+     - results per issue code
+- [ ] T104 (human) Collect and label the evaluation corpus following `tools/eval/README.md`: at least 50 solo takes and at least 30 lead-over-loop takes, labelled by a guitar teacher, in `tools/eval/corpus/` (not committed)
+- [ ] T105 Tune thresholds against the corpus by running `npm run eval`. Adjust `src/analysis/config/thresholds.ts`, bump `ENGINE_VERSION` (e.g. `1.0.0+t2`), and record before and after metrics in `specs/001-guitar-practice-feedback/eval-results.md`. If SC-003, SC-008 or SC-009 targets are still missed, list the failing issue codes and the proposed analyser changes in the same file
+- [ ] T106 Build the dev-only benchmark screen `app/dev/benchmark.tsx`, reached from Settings → Developer, `__DEV__` builds only:
+  - **Runs**: `runAnalysis` on bundled 60 s and 300 s fixtures, solo and lead-over-loop.
+  - **Measures**: end-to-end time, engine time and peak JS heap.
+  - **Results**: record them per device in `specs/001-guitar-practice-feedback/benchmarks.md`.
+  - **Targets**: 60 s fixture ≤ 30 s end-to-end and ≤ 10 s engine; 5-minute peak memory ≤ 300 MB; progress updates at least every 2 s.
+- [ ] T107 If T106 misses the engine budget, profile and move the hottest `Dsp` operations (FFT/STFT and the REPET median) to C++ via Nitro Modules in `modules/rifflect-dsp/`, behind the existing `Dsp` interface. The TS implementation stays the default in Node and Jest, and T033 must pass against both implementations
+- [ ] T108 [P] Replace the stub `getDeviceTier()` in `src/capture/deviceTier.ts` (from T060) with real device tiering, using total RAM and the OS version from `expo-device`: low tier gets 8 fps landmarks; the analysing screen shows a longer time estimate on low tier
+- [ ] T109 [P] Do an accessibility pass across `src/features/**` and `src/ui/**`:
+  - **Labels**: `accessibilityLabel` and `accessibilityRole` on every control and `testID` element.
+  - **Text**: feedback text respects dynamic type (no fixed heights on point cards).
+  - **Readouts**: scores are read aloud as "Timing 72 out of 100".
+  - **Colour**: contrast passes WCAG AA in light and dark mode.
+- [ ] T110 [P] Write the Maestro flow `e2e/v2-limits.yaml` (record talking only, then assert the no-playing state) and extend `e2e/smoke.yaml` to run all flows in order
+- [ ] T111 [P] Write the root `README.md`: what Rifflect is; prerequisites from [quickstart.md](./quickstart.md); setup (`npm install`, `npx expo prebuild`, `npx expo run:android`); the iOS EAS dev-build steps for Windows; npm scripts; project structure; links to `specs/001-guitar-practice-feedback/`
+- [ ] T112 Privacy check in `tests/unit/privacy.test.ts` (static scan): no `fetch`, `XMLHttpRequest`, `WebSocket` or `axios` usage in `src/**` or `app/**`, and no network-capable analytics SDKs in `package.json` dependencies (FR-014). Add a note to `README.md` that the app never sends take data off the phone
+- [ ] T113 (human, device) Run the quickstart validation V1–V6 and the performance check on a reference Android device and an iPhone (EAS dev build). Record pass or fail per scenario, with notes, in `specs/001-guitar-practice-feedback/validation.md`
+- [ ] T114 Measure engine time for 60 s solo and 60 s lead-over-loop fixtures in Node, as a regression guard: `tests/analysis/perf.test.ts`, skipped in CI by default via `RUN_PERF=1`, fails if over 3 s on a desktop. On-device numbers come from T106
+
+---
+
+## Dependencies & Execution Order
+
+### Phase dependencies
+
+- **Phase 1 (Setup)**: no dependencies.
+- **Phase 2 (Foundational)**: depends on Phase 1 and **blocks all stories**.
+  - The data layer (T011–T015), native modules (T016–T025), landmark extraction script (T026), analysis core (T029–T034) and job queue (T035–T036) can proceed in parallel tracks.
+  - The spikes (T027–T028) need T017, T020–T022 and T016, T018 on a device.
+  - The app shell (T037) needs T012 and T036.
+- **Phase 3 (US1, P1)**: needs Phase 2. **This is the MVP.**
+- **Phase 4 (US2, P2)**: needs Phase 2 plus US1's capture and feedback screen (T056, T060, T065). It extends US1's screens rather than replacing them.
+- **Phase 5 (US4, P2)**: needs US1's engine (T044–T054), the landmark pipeline (T060, T062) and the feedback screen (T065). Independent of US2.
+- **Phase 6 (US3, P3)**: needs US2 (saved takes, labels). The solo/accompanied filter works without US4.
+- **Phase 7 (Polish)**: T102–T103 and T108–T112 can start any time after Phase 2. T104–T107 and T113 need the stories they measure.
+
+### User story dependency graph
+
+```text
+Setup ─► Foundational ─┬─► US1 (P1, MVP) ─┬─► US2 (P2) ─► US3 (P3)
+   (spike gates T027/T028) │                  └─► US4 (P2)
+                           └─► Polish: eval tooling (T102–T103), a11y, README (any time)
+```
+
+### Within each story
+
+- Tests first, and confirm they fail (engine, repository and contract tests).
+- Engine modules, then the orchestrator.
+- Repositories, then the job runner, then screens.
+- Maestro flow last; the story checkpoint then validates against quickstart.
+
+---
+
+## Parallel Examples
+
+### Phase 2 (after T011–T012)
+
+```text
+Track A (data):      T013, T014, T015
+Track B (native):    T016 → T018 ∥ T019 ;  T017 → T020 ∥ T021 → T022 → T023 ;  T026 (independent, Python)
+Track C (engine):    T029, T030, T031, T032 → T033 → T034
+Track D (queue):     T035 → T036
+```
+
+### User Story 1
+
+```text
+# Tests together:
+T038 timing tests ∥ T039 technique tests ∥ T040 contract tests ∥ T041 fixture runner ∥ T042 repo tests
+
+# Engine modules in parallel once T044–T046 are done:
+T047 hands ∥ T050 clarity ∥ T051 posture/limitations ∥ T052 scoring ∥ T053 text catalogue
+# then T048, T049 (need T047), then T054 orchestrator
+
+# Capture/UI in parallel with the engine:
+T055 profile repo ∥ T058 camera session ; then T057, T059 → T060 → T061
+```
+
+### User Story 4
+
+```text
+T080 synth mixes → (T081 ∥ T082 ∥ T083)
+T084 detect → T085 grid ; T086 REPET ∥ T087 click → T088 attribution → T089 findings → T090 integrate
+T092 record setting ∥ T093 banner (after T091)
+```
+
+### User Story 3
+
+```text
+T096 tests → T097 repo → (T098 progress screen ∥ T099 compare) ; T100 ∥ T101
+```
+
+---
+
+## Implementation Strategy
+
+### MVP first (US1 only)
+
+1. Phase 1 Setup, then Phase 2 Foundational, including **both spike gates**. Act on the results before US1 capture work: if Spike A fails, the post-take landmark extraction (T023) becomes the primary path.
+2. Phase 3 (US1). Stop and validate quickstart V1 and V2 on real Android and iOS devices, in airplane mode.
+3. Demo: record a take and get feedback, entirely on the phone.
+
+### Incremental delivery
+
+1. US1: feedback on a take (MVP).
+2. US2: keep a library of takes (makes the app usable day to day).
+3. US4: loop and backing-track support. This is the most technically risky part, so build it against synthetic mixes before real recordings.
+4. US3: progress tracking (most useful once users have saved takes).
+5. Polish: corpus-based tuning against SC-003, SC-008 and SC-009; performance (SC-002); accessibility.
+
+Each increment ends with its checkpoint and the matching quickstart scenarios.
+
+### Notes
+
+- **Commits**: commit after each task or logical group.
+- **Native code**: (device) tasks need dev builds; iOS needs EAS Build because development happens on Windows.
+- **Human tasks**: (human) tasks (T027, T028, T043, T094, T104, T113) are scheduling dependencies for whoever owns the guitar and the devices.
+- **Engine purity**: never import React Native into `src/analysis/`. The ESLint rule from T004 enforces this.
+- **Thresholds**: every threshold lives in `src/analysis/config/thresholds.ts`. Bump `ENGINE_VERSION` when one changes, so stored reports can be told apart.
