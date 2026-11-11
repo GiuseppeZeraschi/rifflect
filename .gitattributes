@@ -1,0 +1,51 @@
+# Line endings: store and check out text files as LF everywhere (Windows, macOS, CI, EAS Build),
+# regardless of each machine's core.autocrlf setting.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF (spec-kit PowerShell scripts, batch files)
+*.ps1   text eol=crlf
+*.psm1  text eol=crlf
+*.psd1  text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Shell scripts and Gradle wrapper must be LF to run on macOS/Linux build machines
+*.sh    text eol=lf
+gradlew text eol=lf
+
+# Binary files: never convert line endings, never text-diff
+# Images & fonts
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+# Audio & video (test fixtures, sample takes)
+*.wav   binary
+*.mp3   binary
+*.m4a   binary
+*.aac   binary
+*.flac  binary
+*.f32   binary
+*.mp4   binary
+*.mov   binary
+# On-device ML models (MediaPipe hand landmarker, TFLite)
+*.task   binary
+*.tflite binary
+*.onnx   binary
+# Archives & native binaries
+*.zip   binary
+*.jar   binary
+*.aar   binary
+*.so    binary
+*.a     binary
+
+# Generated lock files: don't show huge diffs in reviews
+package-lock.json -diff linguist-generated=true
+yarn.lock         -diff linguist-generated=true
+pnpm-lock.yaml    -diff linguist-generated=true
