@@ -83,7 +83,7 @@ interface FeedbackPointOut {
    - `'auto'` → the pipeline runs only if it is detected (research R16).
 9. **Timing against the accompaniment**: when `accompaniment.kind ≠ 'none'`, `timingReference = 'accompaniment'`. Timing points describe only live onsets relative to the accompaniment grid. No onset attributed to the accompaniment ever appears in a point's metrics (FR-026, FR-027).
 10. **Clarity only on live notes**: with accompaniment, `clarity` points are emitted only for onsets attributed as live with confidence ≥ 0.7. When `separationConfidence = 'poor'`, no clarity points are emitted, and an `accompaniment_separation_low` limitation is present (FR-028).
-11. **Hand tracking unaffected**: the fretting-hand and picking-hand landmark analysers are unaffected by accompaniment, and their output is identical in both modes for the same landmarks.
+11. **Hand tracking unaffected**: the fretting-hand analyser depends only on the landmarks, so its output is identical in both modes. The picking-hand analyser's pause check (`technique.stopped_strum_motion`) asks whether the player's own notes carried on, so with accompaniment it uses the live onsets rather than the mix (the loop always carries on).
 
 ## Issue codes
 

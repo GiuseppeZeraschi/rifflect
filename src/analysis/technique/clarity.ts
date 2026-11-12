@@ -24,7 +24,7 @@ function energy(x: Float32Array, fromMs: number, toMs: number): number {
 }
 
 /** Share of energy in the second difference (a crude > ~4 kHz emphasis) over [from, to). */
-function highFrequencyRatio(x: Float32Array, fromMs: number, toMs: number): number {
+export function highFrequencyRatio(x: Float32Array, fromMs: number, toMs: number): number {
   const a = Math.max(2, toS(fromMs));
   const b = Math.min(x.length, toS(toMs));
   let hf = 0,
@@ -67,34 +67,72 @@ function openStringRinging(x: Float32Array, onsetMs: number, dsp: Dsp): boolean 
   return OPEN_STRING_HZ.some((hz) => Math.abs(mainHz / hz - Math.round(mainHz / hz)) > 0.08 && mag(hz) > 0.5 * mainMag);
 }
 
+/**
+ * How clarity is judged when something else is playing (US4, research.md R16):
+ * - loop: buzz is measured on the mix as the excess over the same point in the other loop cycles,
+ *   so a buzz recorded into the loop (present every cycle) cancels out;
+ * - click: the buzz window starts after the click has died away;
+ * - backing: hi-hats look like buzz, so buzz isn't judged.
+ * Muted notes and open strings can't be attributed while the accompaniment keeps sounding, so they
+ * are only judged for solo takes (a missed issue beats a false one).
+ */
+export type ClarityContext = { kind: 'solo' } | { kind: 'loop'; loopMs: number } | { kind: 'click' } | { kind: 'backing' };
+
 export interface ClarityOptions {
   /** Per-onset confidence that the onset is live playing (US4). Defaults to 1 for all. */
   liveConfidence?: number[];
+  context?: ClarityContext;
   dsp?: Dsp;
 }
 
 export function analyseClarity(samples: Float32Array, onsetsMs: number[], opts: ClarityOptions = {}): Finding[] {
   const dsp = opts.dsp ?? defaultDsp;
+  const ctx = opts.context ?? { kind: 'solo' };
+  const durationMs = (samples.length / SR) * 1000;
   const usable = onsetsMs
     .map((t, i) => ({ t, i, next: onsetsMs[i + 1] ?? Infinity }))
     .filter(({ i }) => (opts.liveConfidence?.[i] ?? 1) >= TECHNIQUE.liveClarityConfidence);
   // Same minimum as the no-playing check, so an analysed take always gets a clarity point.
   if (usable.length < 4) return [];
 
-  const hf = usable.map(({ t, next }) => highFrequencyRatio(samples, t + 5, Math.min(t + 80, next - 5)));
+  const buzzFrom = ctx.kind === 'click' ? 20 : 5;
+  const hfAt = (t: number, next: number) => highFrequencyRatio(samples, t + buzzFrom, Math.min(t + 80, next - 5));
+  let hf = usable.map(({ t, next }) => hfAt(t, next));
+  const rawSorted = [...hf].sort((a, b) => a - b);
+  const medianRaw = rawSorted[rawSorted.length >> 1]!;
+  if (ctx.kind === 'loop') {
+    // Subtract the brightest the same point gets in the other cycles: a buzz recorded into the loop is
+    // in every cycle (so it cancels), and normal note-to-note variation mostly stays below the maximum.
+    hf = usable.map(({ t, next }, k) => {
+      const others: number[] = [];
+      for (const j of [-2, -1, 1, 2]) {
+        const u = t + j * ctx.loopMs;
+        if (u > 0 && u + 80 < durationMs) others.push(hfAt(u, u + (next - t)));
+      }
+      const loopPart = others.length ? Math.max(...others) : 0;
+      return Math.max(0, hf[k]! - loopPart);
+    });
+  }
   const sortedHf = [...hf].sort((a, b) => a - b);
   const medianHf = sortedHf[sortedHf.length >> 1]!;
-  const buzzy = usable.filter((_, k) => hf[k]! > Math.max(medianHf * 3, 1e-6) && hf[k]! > 0.02);
+  let buzzThreshold = Math.max(medianHf * 3, 1e-6, 0.02);
+  if (ctx.kind === 'loop') {
+    // Only a clear outlier counts: the excess must be several times how bright notes normally are
+    // in this take (and not less than 0.5).
+    buzzThreshold = Math.max(3 * medianRaw, 0.5);
+  }
+  const buzzy = ctx.kind === 'backing' ? [] : usable.filter((_, k) => hf[k]! > buzzThreshold);
 
+  const solo = ctx.kind === 'solo';
   // Decay check only where the next onset is far enough away not to mask it.
-  const decayable = usable.filter(({ t, next }) => next - t >= 300 && t + 260 <= (samples.length / SR) * 1000);
+  const decayable = solo ? usable.filter(({ t, next }) => next - t >= 300 && t + 260 <= durationMs) : [];
   const muted = decayable.filter(({ t }) => {
     const early = energy(samples, t + 20, t + 60);
     const late = energy(samples, t + 150, t + 250);
     return early > 0 && late / early < 0.02;
   });
 
-  const open = usable.filter(({ t, next }) => next - t >= 400 && openStringRinging(samples, t, dsp));
+  const open = solo ? usable.filter(({ t, next }) => next - t >= 400 && openStringRinging(samples, t, dsp)) : [];
 
   const out: Finding[] = [];
   const base = Math.min(0.9, 0.55 + usable.length / 60);
@@ -124,7 +162,8 @@ export function analyseClarity(samples: Float32Array, onsetsMs: number[], opts: 
       confidence: base,
       startMs: Math.round(usable[0]!.t),
       endMs: Math.round(usable[usable.length - 1]!.t),
-      metrics: { notes: usable.length },
+      // With accompaniment only buzz is judged (see ClarityContext), so "clean" means "no buzz".
+      metrics: { notes: usable.length, checked: solo ? 'all' : 'buzz' },
     });
   }
   return out;

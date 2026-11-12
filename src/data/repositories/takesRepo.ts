@@ -142,6 +142,12 @@ export function saveTake(db: Db, id: string, fields: { practiceItemId?: string |
   return saved;
 }
 
+/** Change how accompaniment is handled for this take; used before re-analysis (FR-029). */
+export function setAccompanimentSetting(db: Db, id: string, setting: AccompanimentSetting): void {
+  if (setting !== 'auto' && setting !== 'on' && setting !== 'off') throw new Error(`Invalid accompaniment setting: ${String(setting)}`);
+  db.update(take).set({ accompanimentSetting: setting, updatedAt: nowIso() }).where(eq(take.id, id)).run();
+}
+
 /** Rename a take (title "≤ 80 chars"; empty clears it). */
 export function updateTitle(db: Db, id: string, title: string | null): void {
   const clean = title?.trim() || null;

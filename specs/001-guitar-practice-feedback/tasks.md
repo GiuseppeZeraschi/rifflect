@@ -472,23 +472,23 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T079 [P] [US4] Create the synthetic mix helper `tests/helpers/synthMix.ts`. It builds a solo lead with known onsets (synth.ts), and lead-plus-loop mixes with the true live onsets and stroke landmarks attached. Mix types:
+- [X] T079 [P] [US4] Create the synthetic mix helper `tests/helpers/synthMix.ts`. It builds a solo lead with known onsets (synth.ts), and lead-plus-loop mixes with the true live onsets and stroke landmarks attached. Mix types:
   - **Loop**: a repeating rhythm loop (length 2–16 s) at gain ratios 0.5×, 1× and 2× the lead
   - **Overdub**: the loop gains a layer halfway through
   - **Click track**: 3–4 kHz clicks
   - **Non-repeating backing**: drums plus bass-like content
   - **Unison**: the lead doubles the loop for 2 bars
   - **Loop only**: no lead
-- [ ] T080 [P] [US4] Write accompaniment detection tests in `tests/analysis/accompaniment/detect.test.ts`:
+- [X] T080 [P] [US4] Write accompaniment detection tests in `tests/analysis/accompaniment/detect.test.ts`:
   - **Loop length**: estimated within ±10 ms for loops of 2, 4.5 and 12 s
   - **Classification**: `loop`, `backing`, `click` and `none` on the matching mixes
   - **Solo takes**: no false `loop` or `backing` on 20 synthetic solo variants (≤ 5% overall, SC-008)
-- [ ] T081 [P] [US4] Write separation and attribution tests in `tests/analysis/accompaniment/separate.test.ts`:
+- [X] T081 [P] [US4] Write separation and attribution tests in `tests/analysis/accompaniment/separate.test.ts`:
   - **Recall**: live-onset recall ≥ 90% and loop-onset leakage ≤ 10% at a 1× gain ratio
   - **Loop buzz**: a buzz placed only in the loop produces no `technique.fret_buzz` point
   - **Confidence**: `separationConfidence` is `good` at 0.5×, at most `partial` at 2×, and `poor` with no stroke landmarks and a 2× loop
   - **Unison**: emits the `unison_with_accompaniment` limitation for the doubled bars
-- [ ] T082 [P] [US4] Write accompaniment contract tests in `tests/analysis/accompaniment/contract.test.ts` for guarantees 8–11 and the loop-only part of guarantee 1:
+- [X] T082 [P] [US4] Write accompaniment contract tests in `tests/analysis/accompaniment/contract.test.ts` for guarantees 8–11 and the loop-only part of guarantee 1:
   - `accompaniment: 'off'` gives a result deep-equal to the solo pipeline
   - `'on'` with no repetition gives `kind = 'backing'`
   - With accompaniment, `timingReference = 'accompaniment'`, and no accompaniment onset appears in any timing point's metrics
@@ -498,27 +498,27 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Implementation for User Story 4
 
-- [ ] T083 [US4] Implement detection in `src/analysis/accompaniment/detect.ts`:
+- [X] T083 [US4] Implement detection in `src/analysis/accompaniment/detect.ts`:
   - **Features**: beat-synchronous chroma and spectral features (dsp/chroma.ts).
   - **Repetition**: self-similarity, then autocorrelation over lags 1–60 s, then a sharpness and periodicity score. Refine the loop length to sample accuracy by cross-correlating the waveform around the peak lag.
   - **Click**: a regular train of short broadband transients centred in 2–5 kHz.
   - **Classification**: `loop` / `backing` / `click` / `none`, with thresholds from `thresholds.ts`.
 
   T080 must pass.
-- [ ] T084 [US4] Implement the accompaniment timing grid in `src/analysis/accompaniment/grid.ts`:
+- [X] T084 [US4] Implement the accompaniment timing grid in `src/analysis/accompaniment/grid.ts`:
   - **Loop**: bars = loop length / n for the whole number n (1–8) that best explains the repeating part's onsets; the beat count is chosen likewise; phase is taken from the strongest repeating onsets.
   - **Click**: the click times are the grid.
   - **Backing**: the beat tracker from T043 run on the full mix.
 
   Output uses the same grid type as `beatGrid.ts`.
-- [ ] T085 [US4] Implement REPET separation in `src/analysis/accompaniment/repet.ts`:
+- [X] T085 [US4] Implement REPET separation in `src/analysis/accompaniment/repet.ts`:
   - **Windowed REPET for loops**: per-bin median of the magnitude spectrogram across a sliding window of 3–5 loop cycles gives the repeating model; a soft mask gives the live residual STFT and residual onset envelope.
   - **REPET-Sim for `backing`**: median over the k most similar frames.
   - **Changes**: mark sections where the model changes abruptly as `accompaniment_changed`.
   - **Short takes**: emit `too_few_loop_cycles` when there are fewer than 2 cycles, and fall back to backing handling.
   - **Memory**: process in chunks so peak memory stays within the 300 MB limit for a 5-minute take.
-- [ ] T086 [P] [US4] Implement click removal in `src/analysis/accompaniment/click.ts`: drop onsets within ±15 ms of a detected click whose spectrum is click-like; keep guitar onsets that coincide with clicks when their low-band energy is above the threshold
-- [ ] T087 [US4] Implement attribution in `src/analysis/accompaniment/attribution.ts`:
+- [X] T086 [P] [US4] Implement click removal in `src/analysis/accompaniment/click.ts`: drop onsets within ±15 ms of a detected click whose spectrum is click-like; keep guitar onsets that coincide with clicks when their low-band energy is above the threshold
+- [X] T087 [US4] Implement attribution in `src/analysis/accompaniment/attribution.ts`:
   - **Matching**: match residual onsets to picking-hand strokes from `detectStrokes` (T045) within ±50 ms.
   - **Per-onset confidence**:
     - High for matched onsets.
@@ -527,13 +527,13 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **`liveOnsetMatchRate`**: computed from the matches.
   - **`separationConfidence`**: `good` / `partial` / `poor`, from the mask energy ratio and the match rate.
   - **Limitations**: `unison_with_accompaniment` when the residual is near zero while strokes continue, and `accompaniment_too_loud` when the mask ratio is below the threshold.
-- [ ] T088 [US4] Implement accompaniment timing findings in `src/analysis/accompaniment/findings.ts`. Measure live onsets against the accompaniment grid, and emit:
+- [X] T088 [US4] Implement accompaniment timing findings in `src/analysis/accompaniment/findings.ts`. Measure live onsets against the accompaniment grid, and emit:
   - `timing.locked_to_accompaniment`
   - `timing.ahead_of_accompaniment` (< −20 ms) and `timing.behind_accompaniment` (> +20 ms), overall or per beat position
   - `timing.lost_place_in_loop` (a stretch shifted consistently by ≥ ¼ beat)
 
   Add observation and suggestion templates for these codes and for the new limitation codes in `src/analysis/feedback-text/catalogue.ts`.
-- [ ] T089 [US4] Fill in the accompaniment stage hook in `src/analysis/index.ts`:
+- [X] T089 [US4] Fill in the accompaniment stage hook in `src/analysis/index.ts`:
   - **Detection**: `off` skips the stage. `on` forces it, and falls back to `backing` when there is no repetition. `auto` runs it only when something is detected.
   - **Grid and onsets**: when the stage runs, use the accompaniment grid and the live residual onsets (`timingReference = 'accompaniment'`).
   - **Clarity**: pass per-onset live confidence to clarity (T048) so only onsets with confidence ≥ 0.7 count. Emit no clarity points when confidence is `poor`.
@@ -542,13 +542,13 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **Time budget**: stays within the 10 s engine budget for 60 s of input (measured in T112).
 
   T081 and T082 must pass, and T036–T039 must still pass.
-- [ ] T090 [US4] Persist accompaniment results:
+- [X] T090 [US4] Persist accompaniment results:
   - **Reports**: update `saveReport` in `src/data/repositories/reportsRepo.ts` to write `accompanimentKind`, `loopLengthMs`, `timingReference`, `separationConfidence` and `liveOnsetMatchRate`.
   - **Takes**: add `setAccompanimentSetting(id, 'auto' | 'on' | 'off')` to `takesRepo.ts`.
   - **Runner**: pass `take.accompanimentSetting` into `AnalysisInput.accompaniment` in `src/jobs/runAnalysis.ts`.
   - **Tests**: extend `tests/unit/data/takesReportsRepo.test.ts`.
-- [ ] T091 [US4] Add the accompaniment setting to the Record screen: a segmented control `accompaniment-setting` (Auto / On / Off) in `src/features/record/AccompanimentSetting.tsx`. Pre-select it from `profile.lastAccompanimentSetting` (default `auto`), and write the chosen value back via `profileRepo.upsertProfile` when recording starts. Pass it to `recordingController.start` (FR-024). Show a tip when On: "Point the camera at your hands; keep the loop a bit quieter than your live playing"
-- [ ] T092 [US4] Add the accompaniment banner and re-analysis to the feedback screen:
+- [ ] T091 [US4] (control built: `src/features/record/AccompanimentSetting.tsx`; wiring into the Record screen is part of T059) Add the accompaniment setting to the Record screen: a segmented control `accompaniment-setting` (Auto / On / Off) in `src/features/record/AccompanimentSetting.tsx`. Pre-select it from `profile.lastAccompanimentSetting` (default `auto`), and write the chosen value back via `profileRepo.upsertProfile` when recording starts. Pass it to `recordingController.start` (FR-024). Show a tip when On: "Point the camera at your hands; keep the loop a bit quieter than your live playing"
+- [X] T092 [US4] Add the accompaniment banner and re-analysis to the feedback screen:
   - **Banner**: `src/features/feedback/AccompanimentBanner.tsx` (`accompaniment-banner`) shows "Loop detected · 8.0 s loop · Separation: good", or Backing track / Click.
   - **Re-analysis**: `reanalyse-as-solo` and `reanalyse-with-accompaniment` call `setAccompanimentSetting`, then `analysisQueue.enqueue`, then navigate to `/take/[id]/analysing`. The new report replaces the old one (FR-029).
 - [ ] T093 [US4] (human) Record at least 4 real lead-over-loop fixtures with a loop pedal through an amp and add them to `tests/fixtures/`:

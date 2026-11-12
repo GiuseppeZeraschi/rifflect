@@ -4,6 +4,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { ScrollView, StyleSheet } from 'react-native';
 
 import { takeFiles } from '@/data/files';
+import { AccompanimentBanner } from '@/features/feedback/AccompanimentBanner';
 import { FeedbackView } from '@/features/feedback/FeedbackView';
 import { TakeActions } from '@/features/feedback/TakeActions';
 import { useTakeFeedback } from '@/features/feedback/useTakeFeedback';
@@ -45,7 +46,14 @@ export default function TakeFeedbackScreen() {
         onSeek={seek}
         onRetry={() => analysisQueue.retry(take.id)}
         video={<VideoView testID="take-video" player={player} nativeControls contentFit="contain" style={styles.video} />}
-        actions={<TakeActions take={take} />}
+        actions={
+          <>
+            {report && (take.analysisStatus === 'analysed' || take.analysisStatus === 'no_playing') ? (
+              <AccompanimentBanner take={take} report={report} />
+            ) : null}
+            <TakeActions take={take} />
+          </>
+        }
       />
     </ScrollView>
   );

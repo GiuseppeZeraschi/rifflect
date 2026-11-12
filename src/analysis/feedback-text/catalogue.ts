@@ -144,11 +144,11 @@ export const CATALOGUE: Record<IssueCode, CatalogueEntry> = {
     },
   },
   'timing.ahead_of_accompaniment': {
-    headline: (m) => (m.beat ? `Ahead of the loop on beat ${num(m, 'beat')}` : 'Ahead of the loop'),
+    headline: (m) => `Ahead of the loop${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}`,
     observation: {
-      beginner: (m) => `Your notes came a little before the backing's beat${m.beat ? ` on beat ${num(m, 'beat')}` : ''}, by about ${abs(num(m, 'meanOffsetMs'))} ms.`,
-      intermediate: (m) => `Your lead landed about ${abs(num(m, 'meanOffsetMs'))} ms ahead of the loop${m.beat ? ` on beat ${num(m, 'beat')}` : ''}.`,
-      advanced: (m) => `Leading the loop by ≈${abs(num(m, 'meanOffsetMs'))} ms${m.beat ? ` on beat ${num(m, 'beat')}` : ''}.`,
+      beginner: (m) => `Your notes came a little before the backing's beat${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}, by about ${abs(num(m, 'meanOffsetMs'))} ms.`,
+      intermediate: (m) => `Your lead landed about ${abs(num(m, 'meanOffsetMs'))} ms ahead of the loop${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}.`,
+      advanced: (m) => `Leading the loop by ≈${abs(num(m, 'meanOffsetMs'))} ms${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}.`,
     },
     suggestion: {
       beginner: () => 'Listen to the loop for a bar before you come in, and try to play with it rather than over it.',
@@ -157,11 +157,11 @@ export const CATALOGUE: Record<IssueCode, CatalogueEntry> = {
     },
   },
   'timing.behind_accompaniment': {
-    headline: (m) => (m.beat ? `Behind the loop on beat ${num(m, 'beat')}` : 'Behind the loop'),
+    headline: (m) => `Behind the loop${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}`,
     observation: {
-      beginner: (m) => `Your notes came a little after the backing's beat${m.beat ? ` on beat ${num(m, 'beat')}` : ''}, by about ${abs(num(m, 'meanOffsetMs'))} ms.`,
-      intermediate: (m) => `Your lead landed about ${abs(num(m, 'meanOffsetMs'))} ms behind the loop${m.beat ? ` on beat ${num(m, 'beat')}` : ''}.`,
-      advanced: (m) => `Trailing the loop by ≈${abs(num(m, 'meanOffsetMs'))} ms${m.beat ? ` on beat ${num(m, 'beat')}` : ''}.`,
+      beginner: (m) => `Your notes came a little after the backing's beat${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}, by about ${abs(num(m, 'meanOffsetMs'))} ms.`,
+      intermediate: (m) => `Your lead landed about ${abs(num(m, 'meanOffsetMs'))} ms behind the loop${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}.`,
+      advanced: (m) => `Trailing the loop by ≈${abs(num(m, 'meanOffsetMs'))} ms${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}.`,
     },
     suggestion: {
       beginner: () => 'Get your fingers to the next note a little earlier so you can play right with the loop.',
@@ -183,11 +183,17 @@ export const CATALOGUE: Record<IssueCode, CatalogueEntry> = {
     },
   },
   'technique.clean': {
-    headline: () => 'Clean notes',
+    headline: (m) => (str(m, 'checked') === 'buzz' ? 'No fret buzz' : 'Clean notes'),
     observation: {
-      beginner: () => 'Your notes rang out clearly.',
-      intermediate: (m) => `All ${num(m, 'notes')} notes we checked rang clearly, without buzz or dead notes.`,
-      advanced: () => 'Clean articulation: no buzz, dead notes or stray open strings detected.',
+      beginner: (m) => (str(m, 'checked') === 'buzz' ? 'We didn’t hear any fret buzz in your playing.' : 'Your notes rang out clearly.'),
+      intermediate: (m) =>
+        str(m, 'checked') === 'buzz'
+          ? `None of the ${num(m, 'notes')} notes we could pick out from the backing buzzed.`
+          : `All ${num(m, 'notes')} notes we checked rang clearly, without buzz or dead notes.`,
+      advanced: (m) =>
+        str(m, 'checked') === 'buzz'
+          ? 'No buzz detected in the live part (other clarity checks need a solo take).'
+          : 'Clean articulation: no buzz, dead notes or stray open strings detected.',
     },
     suggestion: {
       beginner: () => 'Nice. Keep the same light, firm pressure as you try harder chords.',

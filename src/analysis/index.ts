@@ -4,16 +4,20 @@
  * Pure TypeScript, deterministic, no I/O. Runs as an async pipeline that yields to the event loop
  * between stages (research.md R5), reporting progress and honouring cancellation.
  */
-import { AUDIO, CONFIDENCE_FLOOR, ENGINE_VERSION } from './config/thresholds';
+import { analyseAccompanied } from './accompaniment';
+import { detectAccompaniment, type Detection } from './accompaniment/detect';
+import { AUDIO, CONFIDENCE_FLOOR, ENGINE_VERSION, TECHNIQUE } from './config/thresholds';
 import { defaultDsp, type Dsp } from './dsp';
 import { buildSummary, renderFinding } from './feedback-text/render';
 import { limitation } from './limitations';
 import { hasPlaying } from './playing';
 import { techniqueScore, timingScore } from './scoring/scores';
 import { analyseTechnique } from './technique';
+import type { ClarityContext } from './technique/clarity';
+import { assignHands } from './technique/hands';
 import { analyseTimingFromOnsets } from './timing';
 import { detectOnsets } from './timing/onsets';
-import type { AnalysisInput, AnalysisOptions, AnalysisResult, Finding, Limitation, Severity } from './types';
+import type { AccompanimentKind, AnalysisInput, AnalysisOptions, AnalysisResult, Finding, Limitation, Severity } from './types';
 
 export * from './types';
 export { ENGINE_VERSION } from './config/thresholds';
@@ -79,28 +83,72 @@ export async function analyseTake(input: AnalysisInput, opts?: AnalysisOptions, 
   const onsets = detectOnsets(samples, dsp);
   await step(opts, 0.3);
 
-  // 2. No playing → no findings, ever (guarantee 1).
-  if (!hasPlaying(samples, onsets.onsetsMs)) {
-    opts?.onProgress?.(1);
-    return emptyResult(input, []);
+  // 2. Accompaniment detection (US4, research.md R16). 'off' skips it entirely, so the result is
+  //    identical to solo analysis (guarantee 8). 'on' with nothing detected is treated as backing.
+  let detection: Detection | null = null;
+  let kind: AccompanimentKind = 'none';
+  if (input.accompaniment !== 'off') {
+    detection = detectAccompaniment(samples);
+    kind = detection.kind;
+    if (kind === 'none' && input.accompaniment === 'on') kind = 'backing';
   }
+  await step(opts, 0.4);
 
-  // 3. Accompaniment stage (US4, research.md R16). Until it exists every take is analysed as solo:
-  //    kind 'none', timing against the player's own beat. When input.accompaniment === 'off' this
-  //    stage must always be skipped (guarantee 8).
-  const accompaniment: AnalysisResult['accompaniment'] = {
+  // 3. Timing: against the player's own beat (solo) or the accompaniment's.
+  let timingFindings: Finding[];
+  let tempo: AnalysisResult['tempo'];
+  let timingGridOk: boolean;
+  let fallbackStartMs = 0;
+  let fallbackBpm = 0;
+  let accompaniment: AnalysisResult['accompaniment'] = {
     kind: 'none',
     loopLengthMs: null,
     timingReference: 'own_playing',
     separationConfidence: null,
     liveOnsetMatchRate: null,
   };
+  const extraLimitations: Limitation[] = [];
+  let clarity: { onsetsMs?: number[]; liveConfidence?: number[]; context?: ClarityContext } = {};
+  let suppressClarity = false;
 
-  // 4. Timing.
-  const timing = analyseTimingFromOnsets(onsets, { targetTempoBpm: input.targetTempoBpm }, dsp);
-  await step(opts, 0.55);
+  if (kind === 'none') {
+    // No playing → no findings, ever (guarantee 1).
+    if (!hasPlaying(samples, onsets.onsetsMs)) {
+      opts?.onProgress?.(1);
+      return emptyResult(input, []);
+    }
+    const timing = analyseTimingFromOnsets(onsets, { targetTempoBpm: input.targetTempoBpm }, dsp);
+    timingFindings = timing.findings;
+    tempo = timing.tempo;
+    timingGridOk = !!timing.grid;
+    fallbackStartMs = timing.grid?.assignments[0]?.onsetMs ?? 0;
+    fallbackBpm = timing.grid?.bpm ?? 0;
+    if (!timing.grid) extraLimitations.push(limitation('tempo_not_detected'));
+  } else {
+    const tracks = input.landmarks?.length
+      ? assignHands(input.landmarks, { handedness: input.player.handedness, mirrored: input.landmarksMirrored ?? false })
+      : null;
+    const acc = analyseAccompanied({ samples, mixOnsets: onsets, detection: detection!, kind, tracks, targetTempoBpm: input.targetTempoBpm, dsp });
+    if (acc.status === 'no_playing') {
+      opts?.onProgress?.(1);
+      return { ...emptyResult(input, acc.limitations), accompaniment: acc.accompaniment };
+    }
+    timingFindings = acc.timingFindings;
+    tempo = acc.tempo;
+    timingGridOk = !!acc.grid;
+    fallbackStartMs = acc.liveOnsetsMs[0] ?? 0;
+    fallbackBpm = acc.tempo.bpm ?? 0;
+    accompaniment = acc.accompaniment;
+    extraLimitations.push(...acc.limitations);
+    // Clarity is judged on the mix at the live onsets, relative to the accompaniment (see clarity.ts).
+    clarity = { onsetsMs: acc.liveOnsetsMs, liveConfidence: acc.liveConfidence, context: acc.clarityContext };
+    suppressClarity = acc.suppressClarity;
+  }
+  await step(opts, 0.6);
 
-  // 5. Technique (hands + clarity).
+  // 4. Technique (hands + clarity). Fretting-hand analysis depends only on the landmarks
+  //    (guarantee 11). The strumming-pause check asks whether the player's own notes carried on, so
+  //    with accompaniment it uses the live onsets (the loop always carries on).
   const technique = analyseTechnique({
     samples,
     onsetsMs: onsets.onsetsMs,
@@ -108,45 +156,53 @@ export async function analyseTake(input: AnalysisInput, opts?: AnalysisOptions, 
     handedness: input.player.handedness,
     landmarksMirrored: input.landmarksMirrored ?? false,
     durationMs: input.durationMs,
+    clarityOnsetsMs: clarity.onsetsMs,
+    // Only notes we're sure are the player's (stroke-matched): faint loop leakage in the lead's rests
+    // must not count as "the music carried on".
+    pickingOnsetsMs: clarity.onsetsMs?.filter((_, i) => (clarity.liveConfidence?.[i] ?? 1) >= TECHNIQUE.liveClarityConfidence),
+    liveConfidence: clarity.liveConfidence,
+    clarityContext: clarity.context,
   });
   await step(opts, 0.85);
 
-  // 6. Limitations.
+  // 5. Limitations.
   const limitations: Limitation[] = [];
   if (input.interrupted) limitations.push(limitation('take_interrupted'));
-  if (!timing.grid) limitations.push(limitation('tempo_not_detected'));
+  limitations.push(...extraLimitations);
   if (peakOf(samples) >= AUDIO.clippingPeak) limitations.push(limitation('clipping_audio'));
-  if (estimateSnrDb(samples) < AUDIO.noisySnrDb) limitations.push(limitation('noisy_audio'));
+  if (kind === 'none' && estimateSnrDb(samples) < AUDIO.noisySnrDb) limitations.push(limitation('noisy_audio'));
   limitations.push(...technique.limitations);
 
-  // 7. Findings above the confidence floor (guarantee 6), clamped to the take (guarantee 3).
+  // 6. Findings above the confidence floor (guarantee 6), clamped to the take (guarantee 3).
+  //    With poor separation, clarity can't be attributed to the player (guarantee 10).
   const clampMs = (t: number) => Math.min(Math.max(0, Math.round(t)), input.durationMs);
-  let findings: Finding[] = [...timing.findings, ...technique.findings]
+  let findings: Finding[] = [...timingFindings, ...technique.findings]
     .filter((f) => f.confidence >= CONFIDENCE_FLOOR)
+    .filter((f) => !(suppressClarity && f.aspect === 'clarity'))
     .map((f) => ({ ...f, startMs: clampMs(f.startMs), ...(f.endMs !== undefined ? { endMs: clampMs(f.endMs) } : {}) }));
 
-  // 8. Every category gets a point, or a limitation and a null score (guarantee 2).
-  if (timing.grid && !findings.some((f) => f.category === 'timing')) {
+  // 7. Every category gets a point, or a limitation and a null score (guarantee 2).
+  if (timingGridOk && !findings.some((f) => f.category === 'timing')) {
     findings.push({
       category: 'timing',
       aspect: 'rhythm',
-      issueCode: 'timing.steady',
+      issueCode: kind === 'none' ? 'timing.steady' : 'timing.locked_to_accompaniment',
       severity: 'info',
       confidence: CONFIDENCE_FLOOR,
-      startMs: clampMs(timing.grid.assignments[0]?.onsetMs ?? 0),
-      metrics: { meanAbsOffsetMs: Math.round((timing.tempo.meanAbsOffsetMs ?? 0) / 5) * 5, bpm: Math.round(timing.grid.bpm) },
+      startMs: clampMs(fallbackStartMs),
+      metrics: { meanAbsOffsetMs: Math.round((tempo.meanAbsOffsetMs ?? 0) / 5) * 5, bpm: Math.round(fallbackBpm) },
     });
   }
 
-  // 9. Scores.
+  // 8. Scores.
   const clarityAssessed = findings.some((f) => f.aspect === 'clarity');
-  const tScore = timing.grid ? timingScore(timing.tempo.meanAbsOffsetMs, timing.tempo.driftBpm) : null;
+  const tScore = timingGridOk ? timingScore(tempo.meanAbsOffsetMs, tempo.driftBpm) : null;
   const kScore = techniqueScore(findings, input.durationMs, technique.coverage, clarityAssessed);
   if (kScore === null && !findings.some((f) => f.category === 'technique')) {
     findings = findings.filter((f) => f.category !== 'technique');
   }
 
-  // 10. Text, ordering and summary.
+  // 9. Text, ordering and summary.
   const points = findings
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.startMs - b.startMs || a.issueCode.localeCompare(b.issueCode))
     .map((f) => renderFinding(f, input.player.skillLevel));
@@ -158,7 +214,7 @@ export async function analyseTake(input: AnalysisInput, opts?: AnalysisOptions, 
     timingScore: tScore,
     techniqueScore: kScore,
     summary: buildSummary(points, input.player.skillLevel),
-    tempo: timing.tempo,
+    tempo,
     accompaniment,
     coverage: { audio: 1, ...technique.coverage },
     limitations,

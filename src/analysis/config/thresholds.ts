@@ -126,8 +126,24 @@ export const ACCOMPANIMENT = {
   strokeMatchMs: 50,
   /** Onset ↔ click match window (ms). */
   clickMatchMs: 15,
+  /** Separation confidence from the residual's share of the mix energy (see attribution.ts). */
+  goodShare: 0.1,
+  partialShare: 0.04,
+  tooLoudShare: 0.03,
   /** Fewer loop cycles than this → too_few_loop_cycles. */
   minLoopCycles: 2,
+  /** Waveform self-correlation at the loop length needed to call it a loop (a looper repeats exactly). */
+  loopMinCorrelation: 0.12,
+  /** A click track repeats with less timing jitter than this (ms, std of the gaps). */
+  clickMaxJitterMs: 1,
+  /** … and its transients carry less than this share of energy in the guitar range (< 1.5 kHz). */
+  clickMaxGuitarShare: 0.3,
+  /** Backing: share of energy below this frequency (kick, bass) … */
+  backingLowHz: 70,
+  /** … at least this share … */
+  backingMinLowShare: 0.03,
+  /** … plus noisy high-frequency hits (hats) at least this often per second. */
+  backingMinHitRate: 1,
 } as const;
 
 export const LANDMARKS = {

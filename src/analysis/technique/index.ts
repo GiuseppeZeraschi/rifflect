@@ -9,7 +9,7 @@
 import { FRAMING } from '../config/thresholds';
 import { limitation } from '../limitations';
 import type { Finding, Handedness, LandmarkFrame, Limitation } from '../types';
-import { analyseClarity } from './clarity';
+import { analyseClarity, type ClarityContext } from './clarity';
 import { analyseFretting } from './frettingHand';
 import { assignHands, rangesWhere, type HandTracks } from './hands';
 import { analysePicking } from './pickingHand';
@@ -25,6 +25,12 @@ export interface TechniqueInput {
   liveConfidence?: number[];
   /** Signal used for clarity (the separated live signal with accompaniment). Defaults to `samples`. */
   claritySignal?: Float32Array;
+  /** Onsets used for clarity (the live onsets with accompaniment). Defaults to `onsetsMs`. */
+  clarityOnsetsMs?: number[];
+  /** Onsets the strumming-pause check uses (the live onsets with accompaniment). Defaults to `onsetsMs`. */
+  pickingOnsetsMs?: number[];
+  /** What else is playing, for clarity judgements (default solo). */
+  clarityContext?: ClarityContext;
 }
 
 export interface TechniqueAnalysis {
@@ -35,8 +41,9 @@ export interface TechniqueAnalysis {
 }
 
 export function analyseTechnique(input: TechniqueInput): TechniqueAnalysis {
-  const clarity = analyseClarity(input.claritySignal ?? input.samples, input.onsetsMs, {
+  const clarity = analyseClarity(input.claritySignal ?? input.samples, input.clarityOnsetsMs ?? input.onsetsMs, {
     liveConfidence: input.liveConfidence,
+    context: input.clarityContext,
   });
   const limitations: Limitation[] = [limitation('posture_not_assessed')];
 
@@ -52,7 +59,7 @@ export function analyseTechnique(input: TechniqueInput): TechniqueAnalysis {
   for (const [a, b] of dark) limitations.unshift(limitation('low_light', a, b));
 
   return {
-    findings: [...analyseFretting(tracks), ...analysePicking(tracks, input.onsetsMs), ...clarity],
+    findings: [...analyseFretting(tracks), ...analysePicking(tracks, input.pickingOnsetsMs ?? input.onsetsMs), ...clarity],
     coverage: { frettingHand: tracks.coverage.fretting, pickingHand: tracks.coverage.picking, posture: 0 },
     limitations,
     tracks,

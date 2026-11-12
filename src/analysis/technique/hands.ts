@@ -15,6 +15,8 @@ export interface HandTracks {
   /** Smoothed fretting-hand landmarks per frame, or null when not visible. */
   fretting: (Point3[] | null)[];
   picking: (Point3[] | null)[];
+  /** Unsmoothed picking-hand landmarks: smoothing lags ~1 frame, too much for stroke timing. */
+  pickingRaw: (Point3[] | null)[];
   brightness: (number | undefined)[];
   coverage: { fretting: number; picking: number };
   /** Ranges (≥ 1 s) where neither hand was visible. */
@@ -101,6 +103,7 @@ export function assignHands(frames: LandmarkFrame[], opts: { handedness: Handedn
     tMs,
     fretting: smooth(rawFretting, tMs),
     picking: smooth(rawPicking, tMs),
+    pickingRaw: rawPicking,
     brightness: frames.map((f) => f.brightness),
     coverage: {
       fretting: rawFretting.filter(Boolean).length / n,

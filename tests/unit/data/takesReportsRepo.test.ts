@@ -4,7 +4,7 @@ import type { AnalysisResult } from '@/analysis/types';
 import { feedbackPoint, feedbackReport, take } from '@/data/db/schema';
 import { upsertProfile } from '@/data/repositories/profileRepo';
 import { getReportWithPoints, saveReport } from '@/data/repositories/reportsRepo';
-import { completeCapture, createTake, getTake, markInterrupted, saveTake, setAnalysisStatus } from '@/data/repositories/takesRepo';
+import { completeCapture, createTake, getTake, markInterrupted, saveTake, setAccompanimentSetting, setAnalysisStatus } from '@/data/repositories/takesRepo';
 import { createTestDb } from '../../helpers/testDb';
 
 function result(over: Partial<AnalysisResult> = {}): AnalysisResult {
@@ -104,6 +104,16 @@ describe('takes and reports repositories', () => {
     saveReport(t.db, tk.id, result(), 1500);
     t.db.delete(feedbackReport).where(eq(feedbackReport.takeId, tk.id)).run();
     expect(t.db.select().from(feedbackPoint).all()).toHaveLength(0);
+  });
+
+  it('stores accompaniment results and lets the setting change for re-analysis', () => {
+    const tk = createTake(t.db, { cameraPosition: 'front', accompanimentSetting: 'auto' });
+    completeCapture(t.db, tk.id, { durationMs: 30_000, fileSizeBytes: 1, landmarksPath: null });
+    saveReport(t.db, tk.id, result({ accompaniment: { kind: 'loop', loopLengthMs: 4800, timingReference: 'accompaniment', separationConfidence: 'partial', liveOnsetMatchRate: 0.92 } }), 1000);
+    expect(getReportWithPoints(t.db, tk.id)!.report).toMatchObject({ accompanimentKind: 'loop', loopLengthMs: 4800, timingReference: 'accompaniment', separationConfidence: 'partial', liveOnsetMatchRate: 0.92 });
+    setAccompanimentSetting(t.db, tk.id, 'off');
+    expect(getTake(t.db, tk.id)!.accompanimentSetting).toBe('off');
+    expect(() => setAccompanimentSetting(t.db, tk.id, 'sometimes' as never)).toThrow(/Invalid/);
   });
 
   it('sets the analysis status', () => {

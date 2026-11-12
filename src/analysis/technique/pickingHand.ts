@@ -21,7 +21,7 @@ export interface Stroke {
  */
 export function detectStrokes(tracks: HandTracks, minTravel = 0.2): Stroke[] {
   const samples: { t: number; y: number; scale: number }[] = [];
-  tracks.picking.forEach((pts, i) => {
+  tracks.pickingRaw.forEach((pts, i) => {
     if (pts) samples.push({ t: tracks.tMs[i]!, y: pts[WRIST]![1], scale: handLength(pts) || 0.1 });
   });
   if (samples.length < 4) return [];
@@ -91,7 +91,8 @@ export function analysePicking(tracks: HandTracks, onsetsMs: number[]): Finding[
   // Stopped strum motion: long pauses in the stroke rhythm while notes keep sounding.
   const pauses = intervals
     .map((iv, i) => ({ iv, from: strokes[i]!.tMs, to: strokes[i + 1]!.tMs }))
-    .filter(({ iv, from, to }) => iv > TECHNIQUE.strumPauseIntervals * medianInterval && onsetsMs.filter((o) => o > from && o < to).length >= 2);
+    // Notes within 80 ms of the strokes at either end belong to those strokes, not to the pause.
+    .filter(({ iv, from, to }) => iv > TECHNIQUE.strumPauseIntervals * medianInterval && onsetsMs.filter((o) => o > from + 80 && o < to - 80).length >= 2);
   if (pauses.length > 0) {
     const longest = pauses.reduce((x, y) => (y.iv > x.iv ? y : x));
     out.push({
