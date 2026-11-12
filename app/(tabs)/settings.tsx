@@ -1,4 +1,5 @@
-/** Settings (tasks.md T065, FR-005): handedness, skill level and camera. Backup/storage come with US2. */
+/** Settings (tasks.md T065, T076): handedness, skill level, camera, backup (Export all) and storage. */
+import { ExportAll } from '@/features/settings/ExportAll';
 import { CAMERA_OPTIONS, HANDEDNESS_OPTIONS, SKILL_OPTIONS, updateProfile, useProfile } from '@/features/profile/useProfile';
 import { Body, Heading, OptionGroup, Screen } from '@/ui/components/controls';
 
@@ -36,6 +37,9 @@ export default function SettingsScreen() {
         value={profile.preferredCamera}
         onChange={(preferredCamera) => updateProfile({ preferredCamera })}
       />
+
+      <Body>Backup and storage</Body>
+      <ExportAll />
     </Screen>
   );
 }

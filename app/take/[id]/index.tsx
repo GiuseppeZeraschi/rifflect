@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet } from 'react-native';
 
 import { takeFiles } from '@/data/files';
 import { FeedbackView } from '@/features/feedback/FeedbackView';
+import { TakeActions } from '@/features/feedback/TakeActions';
 import { useTakeFeedback } from '@/features/feedback/useTakeFeedback';
 import { analysisQueue } from '@/jobs';
 import { Body, Screen } from '@/ui/components/controls';
@@ -44,6 +45,7 @@ export default function TakeFeedbackScreen() {
         onSeek={seek}
         onRetry={() => analysisQueue.retry(take.id)}
         video={<VideoView testID="take-video" player={player} nativeControls contentFit="contain" style={styles.video} />}
+        actions={<TakeActions take={take} />}
       />
     </ScrollView>
   );

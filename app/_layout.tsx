@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -7,7 +7,7 @@ import 'react-native-reanimated';
 import { useDbMigrations } from '@/data/db/client';
 import { AnalysisDoneToast } from '@/features/feedback/AnalysisDoneToast';
 import { useProfileGate } from '@/features/onboarding/useProfileGate';
-import { analysisQueue } from '@/jobs';
+import { startUp, useRecovery } from '@/jobs/startup';
 import { useColorScheme } from '@/ui/components/useColorScheme';
 import { fontSize, palettes, spacing } from '@/ui/theme';
 
@@ -25,8 +25,8 @@ SplashScreen.preventAutoHideAsync();
 /**
  * Root layout (tasks.md T035):
  * 1. Apply database migrations; show an error screen if they fail (never start on a broken schema).
- * 2. Start-up recovery runs here once implemented (T077: `runRecovery()` before the queue).
- * 3. Re-queue takes that were pending analysis.
+ * 2. Start-up recovery (src/jobs/startup.ts), then re-queue takes pending analysis.
+ * 3. Show /recover if takes were interrupted or lost.
  * 4. Route to onboarding until a player profile exists.
  */
 export default function RootLayout() {
@@ -50,17 +50,25 @@ export default function RootLayout() {
 function AppNavigator() {
   const scheme = useColorScheme();
   const { ready, hasProfile } = useProfileGate();
-  const started = useRef(false);
+  const recovered = useRecovery((s) => s.ran);
+  const needsRecoverScreen = useRecovery((s) => s.interruptedIds.length > 0 || s.lostCount > 0);
+  const shownRecover = useRef(false);
 
+  // Recovery runs before the queue loads pending analyses (startUp does both, once).
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    analysisQueue.loadPending();
+    void startUp();
   }, []);
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
   }, [ready]);
+
+  useEffect(() => {
+    if (recovered && hasProfile && needsRecoverScreen && !shownRecover.current) {
+      shownRecover.current = true;
+      router.push('/recover');
+    }
+  }, [recovered, hasProfile, needsRecoverScreen]);
 
   if (!ready) return null;
 
@@ -72,6 +80,8 @@ function AppNavigator() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="take/[id]/index" options={{ title: 'Feedback' }} />
             <Stack.Screen name="take/[id]/analysing" options={{ title: 'Analysing', gestureEnabled: false }} />
+            <Stack.Screen name="take/[id]/edit" options={{ title: 'Edit take' }} />
+            <Stack.Screen name="recover" options={{ title: 'Recovered takes' }} />
           </Stack.Protected>
           <Stack.Protected guard={!hasProfile}>
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />

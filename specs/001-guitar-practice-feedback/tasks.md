@@ -369,6 +369,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **Tempo**: optional target tempo (`tempo-input`, an integer that rejects values outside "30–300", empty = none).
   - **Recording**: `record-button` with an elapsed timer and the 5:00 maximum, and `storage-warning` when free space is low.
   - **After stopping**: navigate to `/take/[id]/analysing`.
+  - **Storage** (from T072): block recording with `storage-warning` when `storageStatus().cannotRecord`, and warn when `low`.
 - [X] T060 [US1] Implement the analysis runner in `src/jobs/runAnalysis.ts`, injected into the queue (T034):
   1. Load the take and profile snapshot.
   2. Call `decodeAudioTrack(video, { sampleRate: 22050, mono: true })` and read the PCM (T023).
@@ -403,7 +404,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T067 [P] [US2] Write practice item and library repository tests in `tests/unit/data/libraryRepo.test.ts`:
+- [X] T067 [P] [US2] Write practice item and library repository tests in `tests/unit/data/libraryRepo.test.ts`:
   - **Item names**: "1–60 chars, trimmed, unique ignoring case" (creating "G–C–D" after "g–c–d" returns the existing item).
   - **Deleting an item**: sets its takes' `practiceItemId` to null, and they show as "Unlabelled".
   - **Library list**: only `saved = true` takes, ordered by `recordedAt DESC`, with label, duration and summary joined.
@@ -411,7 +412,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **Titles**: "≤ 80 chars".
   - **Drafts**: `listDrafts()` returns only `saved = false` takes that are not interrupted, newest first, each with its removal time (`createdAt` + 24 h).
   - **`lastUsedAt`**: set when a take is saved with that item.
-- [ ] T068 [P] [US2] Write recovery and cleanup tests in `tests/unit/jobs/recovery.test.ts`:
+- [X] T068 [P] [US2] Write recovery and cleanup tests in `tests/unit/jobs/recovery.test.ts`:
   - On start, `captureStatus = 'recording'` becomes `partial` with `interrupted = true`
   - `analysing` becomes `pending` and is re-queued
   - Drafts with `interrupted = true` are listed for `/recover`
@@ -420,41 +421,41 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Implementation for User Story 2
 
-- [ ] T069 [P] [US2] Implement the practice items repository in `src/data/repositories/practiceItemsRepo.ts`: `listItems()` (by `lastUsedAt DESC`), `findOrCreate(name)` (trim, validate "1–60 chars", case-insensitive match), `rename` and `delete`
-- [ ] T070 [US2] Extend `src/data/repositories/takesRepo.ts`:
+- [X] T069 [P] [US2] Implement the practice items repository in `src/data/repositories/practiceItemsRepo.ts`: `listItems()` (by `lastUsedAt DESC`), `findOrCreate(name)` (trim, validate "1–60 chars", case-insensitive match), `rename` and `delete`
+- [X] T070 [US2] Extend `src/data/repositories/takesRepo.ts`:
   - **`saveTake(id, { practiceItemId?, title? })`**: enforces the save rule, sets `saved = true`, updates the item's `lastUsedAt`, and generates `thumb.jpg` via `expo-video-thumbnails` at 1 s.
   - **`discardDraft(id)`**: deletes the row and the folder; nothing is stored.
   - **`deleteTake(id)`**: deletes the row (cascading to the report and points) and the folder.
   - **`listLibrary({ search? })`**, **`updateTitle`**, **`setPracticeItem`**.
 
   T067 must pass.
-- [ ] T071 [US2] Add Save, Discard and Label to the feedback screen in `src/features/feedback/TakeActions.tsx`:
+- [X] T071 [US2] Add Save, Discard and Label to the feedback screen in `src/features/feedback/TakeActions.tsx`:
   - **Controls**: `save-take`, `discard-take` (confirm), and `label-picker` (pick an existing item or type a new one).
   - **Leaving a draft**: intercept leaving `/take/[id]` while the take is unsaved and prompt Save / Discard / Keep for now (expo-router `usePreventRemove`).
-- [ ] T072 [US2] Implement storage accounting in `src/data/files/storage.ts`:
+- [X] T072 [US2] Implement storage accounting in `src/data/files/storage.ts`:
   - **Usage**: `totalTakesBytes()` sums `take.fileSizeBytes`.
   - **Space check**: `hasSpaceFor(bytes)` uses `freeDiskBytes()`.
   - **Low-space threshold**: `LOW_SPACE_BYTES` = 600 MB.
-  - **Wiring**: use it on the Record screen (T059, `storage-warning` before recording) and in `saveTake` (warn before saving) (FR-017).
-- [ ] T073 [US2] Build the Library screen `app/(tabs)/library.tsx` with components in `src/features/library/`:
+  - **Wiring**: warn when saving (done, via `saveTakeWithLabel`) and show usage in the Library and Settings. The Record-screen `storage-warning` before recording is part of T059.
+- [X] T073 [US2] Build the Library screen `app/(tabs)/library.tsx` with components in `src/features/library/`:
   - **List**: drizzle live query (`useLiveQuery`) of `listLibrary`, items `library-item-<id>` showing the thumbnail, date, duration, label or "Unlabelled", the first line of the summary, and both scores.
   - **Search**: `library-search`.
   - **Storage**: a `storage-used` footer.
   - **Empty state**: shown when there are no saved takes.
   - **Navigation**: tapping an item opens `/take/[id]`.
-- [ ] T074 [US2] Build the "Not saved yet" section in `src/features/library/UnsavedSection.tsx`, shown above the saved list on the Library screen (`library-unsaved`). Add `listDrafts()` to `src/data/repositories/takesRepo.ts`. Each item `unsaved-item-<id>` shows the date, duration, analysis status and "Removed in Xh", with open, save and discard actions (save opens the label picker from T071). The section is hidden when there are no drafts (FR-015, Story 2 scenario 5)
-- [ ] T075 [US2] Build the edit screen `app/take/[id]/edit.tsx`:
+- [X] T074 [US2] Build the "Not saved yet" section in `src/features/library/UnsavedSection.tsx`, shown above the saved list on the Library screen (`library-unsaved`). Add `listDrafts()` to `src/data/repositories/takesRepo.ts`. Each item `unsaved-item-<id>` shows the date, duration, analysis status and "Removed in Xh", with open, save and discard actions (save opens the label picker from T071). The section is hidden when there are no drafts (FR-015, Story 2 scenario 5)
+- [X] T075 [US2] Build the edit screen `app/take/[id]/edit.tsx`:
   - **Edit**: rename (title "≤ 80 chars") and relabel.
   - **Delete**: `delete-take`, then `confirm-delete`, then return to the library.
-  - **Export**: `export-to-photos` via `expo-media-library` `saveToLibraryAsync` (request add-only permission when used).
+  - **Export**: `export-to-photos` via `expo-media-library` (SDK 58 API: `requestPermissionsAsync(true)` for add-only access, then `Asset.create(videoUri)`; the old `saveToLibraryAsync` now throws).
   - **Share**: `share-take` via `expo-sharing`.
-- [ ] T076 [US2] Implement "Export all" (FR-031) in `src/data/files/exportAll.ts`, with the Settings action `export-all` in `src/features/settings/ExportAll.tsx`:
-  - **Folder**: ask for a destination folder with `StorageAccessFramework.requestDirectoryPermissionsAsync()` from `expo-file-system`, then create `rifflect-export-<YYYY-MM-DD-HHmm>/`.
+- [X] T076 [US2] Implement "Export all" (FR-031) in `src/data/files/exportAll.ts`, with the Settings action `export-all` in `src/features/settings/ExportAll.tsx`:
+  - **Folder**: ask for a destination folder with `Directory.pickDirectoryAsync()` (expo-file-system SDK 58 object API, Android folder picker), then create `rifflect-export-<YYYY-MM-DD-HHmm>/`. Videos are copied in 1 MB chunks through file handles.
   - **Contents**: the layout in [data-model.md § "Export all" backup layout](./data-model.md#export-all-backup-layout-fr-031): `takes.json` with every saved take (fields as listed there), and per take a `<YYYY-MM-DD_HHmm>_<label-or-untitled>/` folder (sanitise names to letters, digits, `-` and `_`) containing `video.mp4` and `feedback.txt` (scores, summary, then each point as `[m:ss] observation — suggestion`).
   - **Scope**: saved takes only; unsaved drafts, landmark files and thumbnails are excluded.
   - **Behaviour**: copy files one at a time with a progress indicator ("12 of 40"); stop cleanly and report which takes were exported if space runs out or the folder becomes unavailable; never modify or delete anything in the app's own storage.
   - **Tests**: `tests/unit/data/exportAll.test.ts` with the file system mocked: correct `takes.json` contents, folder naming and sanitising, drafts excluded, partial-failure reporting.
-- [ ] T077 [US2] Implement start-up recovery in `src/jobs/recovery.ts` (exports `runRecovery()`, the single owner of start-up status repair; called from `app/_layout.tsx` after migrations, before `analysisQueue.loadPending()`), and the `/recover` route `app/recover.tsx`. The route lists the interrupted drafts with `recover-analyse-<id>` (enqueue analysis; partial video accepted, which raises a `take_interrupted` limitation) and `recover-discard-<id>`. If an interrupted take's video can't be decoded (the decoder returns `E_DECODE_FAILED` or `E_NO_AUDIO_TRACK`, e.g. after a crash or power loss), `runRecovery()` deletes the take and folder, and `/recover` shows `recover-lost-notice` ("A recording was lost because the app closed unexpectedly"). Add a case for this to T068. T068 must pass
+- [X] T077 [US2] Implement start-up recovery in `src/jobs/recovery.ts` (exports `runRecovery()`, the single owner of start-up status repair; called from `app/_layout.tsx` after migrations, before `analysisQueue.loadPending()`), and the `/recover` route `app/recover.tsx`. The route lists the interrupted drafts with `recover-analyse-<id>` (enqueue analysis; partial video accepted, which raises a `take_interrupted` limitation) and `recover-discard-<id>`. If an interrupted take's video can't be decoded (the decoder returns `E_DECODE_FAILED` or `E_NO_AUDIO_TRACK`, e.g. after a crash or power loss), `runRecovery()` deletes the take and folder, and `/recover` shows `recover-lost-notice` ("A recording was lost because the app closed unexpectedly"). Add a case for this to T068. T068 must pass
 - [ ] T078 [US2] (optional) Write the Maestro flows `e2e/v3-library.yaml` (record → save with a label → second take discarded → library shows one item → delete with confirm → empty state) and `e2e/v5-interruptions.yaml` (start recording → background the app → relaunch → `/recover` shows the take)
 
 **Checkpoint**: US1 and US2 both work. Quickstart V3 and V5 pass. Saved takes survive restarts, airplane mode and installing an updated release APK (SC-007). "Export all" produces a complete backup folder.

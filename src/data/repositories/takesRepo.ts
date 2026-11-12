@@ -1,9 +1,11 @@
 /**
  * Takes repository (tasks.md T054; US2 extends it in T072). State machine: data-model.md § Take.
  */
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, like, ne, sql } from 'drizzle-orm';
 
 import {
+  feedbackReport,
+  practiceItem,
   take,
   type AccompanimentSetting,
   type AnalysisStatus,
@@ -14,6 +16,7 @@ import type { Db } from '@/data/db/types';
 import { relTakePaths } from '@/data/files/takePaths';
 import { newId } from '@/lib/ids';
 import { nowIso } from '@/lib/time';
+import { touchItem } from './practiceItemsRepo';
 import { getProfile } from './profileRepo';
 
 /** Takes shorter than this aren't analysed (FR-004). */
@@ -134,5 +137,103 @@ export function saveTake(db: Db, id: string, fields: { practiceItemId?: string |
     })
     .where(eq(take.id, id))
     .run();
-  return requireTake(db, id);
+  const saved = requireTake(db, id);
+  if (saved.practiceItemId) touchItem(db, saved.practiceItemId);
+  return saved;
+}
+
+/** Rename a take (title "≤ 80 chars"; empty clears it). */
+export function updateTitle(db: Db, id: string, title: string | null): void {
+  const clean = title?.trim() || null;
+  if (clean && clean.length > 80) throw new Error('Titles can be at most 80 characters');
+  db.update(take).set({ title: clean, updatedAt: nowIso() }).where(eq(take.id, id)).run();
+}
+
+export function setPracticeItem(db: Db, id: string, practiceItemId: string | null): void {
+  db.update(take).set({ practiceItemId, updatedAt: nowIso() }).where(eq(take.id, id)).run();
+  if (practiceItemId && requireTake(db, id).saved) touchItem(db, practiceItemId);
+}
+
+/** Delete a take's row; its report and points cascade. Files are the caller's job (takeService). */
+export function deleteTakeRow(db: Db, id: string): void {
+  db.delete(take).where(eq(take.id, id)).run();
+}
+
+export interface LibraryRow {
+  id: string;
+  recordedAt: string;
+  durationMs: number;
+  title: string | null;
+  label: string | null;
+  practiceItemId: string | null;
+  analysisStatus: AnalysisStatus;
+  summary: string | null;
+  timingScore: number | null;
+  techniqueScore: number | null;
+  thumbPath: string;
+  fileSizeBytes: number;
+}
+
+const libraryColumns = {
+  id: take.id,
+  recordedAt: take.recordedAt,
+  durationMs: take.durationMs,
+  title: take.title,
+  label: practiceItem.name,
+  practiceItemId: take.practiceItemId,
+  analysisStatus: take.analysisStatus,
+  summary: feedbackReport.summary,
+  timingScore: feedbackReport.timingScore,
+  techniqueScore: feedbackReport.techniqueScore,
+  fileSizeBytes: take.fileSizeBytes,
+};
+
+/** Saved takes, newest first, optionally filtered by label (case-insensitive substring). */
+export function libraryQuery(db: Db, { search }: { search?: string } = {}) {
+  const term = search?.trim().toLowerCase();
+  return db
+    .select(libraryColumns)
+    .from(take)
+    .leftJoin(practiceItem, eq(take.practiceItemId, practiceItem.id))
+    .leftJoin(feedbackReport, eq(feedbackReport.takeId, take.id))
+    .where(term ? and(eq(take.saved, true), like(sql`lower(${practiceItem.name})`, `%${term}%`)) : eq(take.saved, true))
+    .orderBy(desc(take.recordedAt));
+}
+
+export function withThumb<T extends { id: string }>(rows: T[]): (T & { thumbPath: string })[] {
+  return rows.map((r) => ({ ...r, thumbPath: relTakePaths(r.id).thumb }));
+}
+
+export function listLibrary(db: Db, opts: { search?: string } = {}): LibraryRow[] {
+  return withThumb(libraryQuery(db, opts).all());
+}
+
+/** Unsaved drafts are kept for this long, then removed at start-up (data-model.md § Draft cleanup). */
+export const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
+export interface DraftRow extends LibraryRow {
+  /** When start-up cleanup will remove it (createdAt + 24 h). */
+  removeAt: string;
+}
+
+/** "Not saved yet": unsaved, uninterrupted takes, newest first (FR-015, Story 2 scenario 5). */
+export function draftsQuery(db: Db) {
+  return db
+    .select({ ...libraryColumns, createdAt: take.createdAt })
+    .from(take)
+    .leftJoin(practiceItem, eq(take.practiceItemId, practiceItem.id))
+    .leftJoin(feedbackReport, eq(feedbackReport.takeId, take.id))
+    .where(and(eq(take.saved, false), eq(take.interrupted, false), ne(take.captureStatus, 'recording')))
+    .orderBy(desc(take.recordedAt));
+}
+
+export function toDraftRows(rows: ReturnType<ReturnType<typeof draftsQuery>['all']>): DraftRow[] {
+  return withThumb(rows).map(({ createdAt, ...r }) => ({
+    ...r,
+    removeAt: new Date(Date.parse(createdAt) + DRAFT_TTL_MS).toISOString(),
+  }));
+}
+
+export function listDrafts(db: Db): DraftRow[] {
+  return toDraftRows(draftsQuery(db).all());
 }

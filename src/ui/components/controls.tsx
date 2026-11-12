@@ -24,9 +24,13 @@ export function Heading({ children }: { children: ReactNode }) {
   );
 }
 
-export function Body({ children, muted, style }: { children: ReactNode; muted?: boolean; style?: object }) {
+export function Body({ children, muted, style, testID }: { children: ReactNode; muted?: boolean; style?: object; testID?: string }) {
   const p = usePalette();
-  return <Text style={[styles.body16, { color: muted ? p.textMuted : p.text }, style]}>{children}</Text>;
+  return (
+    <Text testID={testID} style={[styles.body16, { color: muted ? p.textMuted : p.text }, style]}>
+      {children}
+    </Text>
+  );
 }
 
 export function Button({
