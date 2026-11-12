@@ -12,7 +12,7 @@ These are the user-facing interfaces. Maestro end-to-end flows and component tes
 | `/take/[id]/edit` | Rename / relabel / delete (confirm) / export / share | FR-016, 019 | `delete-take`, `confirm-delete`, `export-to-photos`, `share-take` |
 | `/(tabs)/progress` | Overall and per-item score charts, recurring issues, practice stats, solo/accompanied filter | Story 3, FR-020–021, 023, 030 | `progress-item-picker`, `progress-accompaniment-filter`, `chart-scores`, `recurring-issue-<code>`, `need-more-takes`, `stats-*` |
 | `/compare?a=<id>&b=<id>` | Two takes side by side (videos + feedback) | Story 3 scenario 3, FR-022 | `compare-a`, `compare-b` |
-| `/(tabs)/settings` | Profile (handedness, skill level, camera), storage | FR-005, FR-017 | `settings-handedness`, `settings-skill`, `storage-used` |
+| `/(tabs)/settings` | Profile (handedness, skill level, camera), storage, backup, developer tools | FR-005, FR-017, FR-031 | `settings-handedness`, `settings-skill`, `storage-used`, `export-all` (shows progress and the number of takes exported), `developer-toggle` (hidden; tap the version number 7 times; reveals the benchmark) |
 | `/recover` | Interrupted takes found at start-up: analyse or discard; notice for takes lost to a crash or power loss | Edge case "interrupted" | `recover-analyse-<id>`, `recover-discard-<id>`, `recover-lost-notice` |
 
 **Navigation rules**

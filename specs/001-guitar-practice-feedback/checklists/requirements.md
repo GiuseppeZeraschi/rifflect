@@ -44,4 +44,11 @@
   - **Success criteria**: moved SC-004–SC-006 to post-launch product goals (no in-app analytics).
 
   All items pass.
+- Iteration 6 (2026-11-11): scope changed to personal use on the owner's Android phone (Nothing Phone (4a)), sideloaded and not published.
+  - **Assumptions**: Android-only v1, iOS and stores later; owner responsible for backups; updates must never delete takes.
+  - **New FR-031**: "Export all" backup.
+  - **SC-002**: measured on the Nothing Phone (4a) with a release build. **SC-007**: also covers app updates.
+  - **SC-003, SC-008, SC-009**: now tuning goals on a self-labelled set, not v1 acceptance gates.
+
+  All items pass. The spec mentions the target phone and "release build" as scope facts, not implementation details.
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`

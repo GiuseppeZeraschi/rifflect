@@ -2,14 +2,14 @@
 
 **Feature**: [spec.md](./spec.md) | **Plan**: [plan.md](./plan.md) | **Date**: 2026-11-11
 
-The user decided on React Native, so the app runs on Android and iPhone from one codebase. From clarification, all analysis runs on the phone and feedback is given only after each take. The user later decided to drop the built-in metronome (see R10), and to fully support playing over a loop pedal or backing track (see R16). The decisions below follow from these constraints.
+The user decided on React Native, so the app runs on Android and iPhone from one codebase. From clarification, all analysis runs on the phone and feedback is given only after each take. The user later decided to drop the built-in metronome (see R10), and to fully support playing over a loop pedal or backing track (see R16). Finally, v1 is for personal use on the owner's Android phone, sideloaded and not published (see R17); iOS stays possible but is deferred. The decisions below follow from these constraints.
 
 ---
 
 ## R1. React Native setup: Expo (dev builds) vs bare React Native CLI
 
-- **Decision**: Expo with the latest stable SDK at project start, using **development builds** (`expo prebuild` / EAS Build) with the New Architecture enabled. Expo Go is not used. TypeScript in strict mode.
-- **Rationale**: We need custom native code (audio decoding, MediaPipe hand tracking, camera frame processors). Dev builds support that and still give us Expo's maintained modules (file system, SQLite, video, media library), config plugins and EAS Build. EAS Build matters here: the main development machine runs Windows and cannot build iOS locally.
+- **Decision**: Expo with the latest stable SDK at project start, using **development builds** with the New Architecture enabled, generated with `expo prebuild` and **built locally with Gradle** on Windows. Expo Go is not used. TypeScript in strict mode.
+- **Rationale**: We need custom native code (audio decoding, MediaPipe hand tracking, camera frame processors). Dev builds support that and still give us Expo's maintained modules (file system, SQLite, video, media library) and config plugins. For the Android-only v1 (R17), local builds need no Expo account or cloud service. EAS Build is only needed if iOS is added later, because Windows cannot build iOS locally.
 - **Alternatives considered**:
   - *Bare RN CLI*: the same native access, but we would maintain native project files by hand and need our own iOS CI or a Mac.
   - *Expo Go only*: cannot load the custom native modules this app needs.
@@ -125,10 +125,21 @@ The user decided on React Native, so the app runs on Android and iPhone from one
   - **No OS background processing in v1**: if the app is backgrounded long enough to be suspended, the job resumes on return.
 - **Rationale**: Simple and reliable. OS background tasks for heavy work behave inconsistently between iOS and Android.
 
-## R14. Device floor (spec assumption, SC-002)
+## R14. Target device (SC-002)
 
-- **Decision**: Minimum devices for v1: **iOS 16+** on iPhone XR/A12 or newer, and **Android 8.0+ (API 26)** with 4 GB RAM. On iPhone 12/A14 or newer and on Android phones with a Snapdragon 7-series (2021+) or equivalent, the target is the 30-second SC-002 budget for a 1-minute take. On weaker phones, analysis runs at a lower landmark rate (8 fps) and shows progress.
-- **Rationale**: MediaPipe and VisionCamera requirements plus the Expo SDK floor. To be confirmed by the performance spike on real devices.
+- **Decision**: v1 targets one phone: the owner's **Nothing Phone (4a)** (Qualcomm Snapdragon 7s Gen 4, 4 nm; 8–12 GB RAM depending on variant). It is the performance reference for SC-002, measured on a release build. Landmarks run at a fixed 12 fps; there is no device tiering or low-end mode. `minSdkVersion` stays at the Expo SDK default, so other Android phones may work but are untested.
+- **Rationale**: the Snapdragon 7s Gen 4 is in the mid-range class the original plan used as its reference Android device, so the 30 s / 10 s budgets should hold. The live-landmark spike on this phone confirms it before US1 capture work. Device tiering only matters with many unknown devices, so it is dropped.
+- **Previously**: a device floor of iOS 16+ and Android 8.0+ with a low-tier 8 fps mode. Replaced when the scope changed to personal use (R17).
+
+## R17. Distribution and data safety (personal use)
+
+- **Decision**:
+  - **Install**: build a signed **release APK** locally (`npx expo prebuild` then `./gradlew assembleRelease` in `android/`) and install it with `adb install -r`. Daily use is on release builds only. Development builds need the laptop's Metro server and run analysis much more slowly, so they're for development and debugging.
+  - **Signing**: generate **one release keystore**, store it outside the repo (`.gitignore` already blocks keystore files) with its passwords in the user-level `~/.gradle/gradle.properties`, and back it up. Because `android/` is regenerated by `expo prebuild`, the signing config is applied by a small config plugin (`plugins/withReleaseSigning.js`), not by editing `android/` by hand.
+  - **Why the key matters**: Android only installs an update over an existing app if it is signed with the same key. A lost or different key, or switching between a debug-signed and release-signed install, forces an uninstall, which deletes app-private storage and every take.
+  - **Backups**: no cloud backup exists. "Export all" (FR-031) copies every saved take's video plus a human-readable summary (`takes.json` and one `.txt` per take) into a user-chosen folder through Android's Storage Access Framework. Android Auto Backup is disabled (`android.allowBackup: false`) so a partial restore can never put the database and video files out of step.
+- **Rationale**: these are the only ways a personal sideloaded app loses data, and they're cheap to prevent up front.
+- **Alternatives considered**: *Google Play internal testing*: handles signing and updates, but needs a Play developer account and store listing work the user doesn't want. *Saving takes directly to shared storage (Movies/)*: survives uninstall, but the database would still be lost and other apps could modify the files. "Export all" gives the same safety on demand.
 
 ## R15. Testing and accuracy evaluation
 
@@ -137,9 +148,9 @@ The user decided on React Native, so the app runs on Android and iPhone from one
   - **Fixture tests**: real recorded guitar clips, with landmark JSONL files, checked into `tests/fixtures/`, each with expected findings.
   - **Component tests**: React Native Testing Library for screens.
   - **Data layer**: Drizzle repository tests using SQLite in Node (`better-sqlite3` with the same schema).
-  - **End-to-end**: **Maestro** flows on emulator/simulator and on real devices (camera and mic need a physical device for the full flow).
-  - **Accuracy harness (SC-003)**: `tools/eval/` runs the analysis core in Node over a labelled corpus. Landmarks are produced by MediaPipe Python with the same `.task` model. The harness reports how often our findings match teacher labels.
-  - **Performance harness (SC-002)**: an on-device benchmark screen in dev builds, timing analysis for 1-minute and 5-minute fixtures.
+  - **End-to-end**: one **Maestro** smoke flow on the phone (camera and mic need the physical device). Further flows are optional for personal use.
+  - **Accuracy harness (SC-003 tuning goal)**: `tools/eval/` runs the analysis core in Node over a small self-labelled set (about 15 solo and 8 lead-over-loop takes). Landmarks are produced by MediaPipe Python with the same `.task` model. The harness reports how often our findings match the labels.
+  - **Performance harness (SC-002)**: an on-device benchmark screen, available in release builds through a hidden developer toggle, timing analysis for 1-minute and 5-minute fixtures.
   - **Accompaniment fixtures (SC-008, SC-009)**: synthetic mixes are built in the test suite. A clean solo lead recording is mixed with a looped rhythm part at known gain ratios, so the true live onsets are known exactly. These are added to real lead-over-loop takes in the evaluation corpus.
 
 ## R16. Playing over a loop or backing track (Story 4)

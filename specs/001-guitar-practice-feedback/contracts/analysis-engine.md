@@ -74,7 +74,7 @@ interface FeedbackPointOut {
 4. **Tempo reference**: timing metrics are always measured against the beat grid estimated from the player's own playing. If `targetTempoBpm` is given, it is used to resolve half/double-tempo ambiguity, `tempo.targetDeltaBpm` is set, and a `timing.off_target_tempo` point is emitted when the difference is more than 5% (FR-007, Story 1 scenario 3).
 5. **Left-handed players**: with `handedness = 'left'`, the fretting and picking hand roles are swapped. Mirrored front-camera handedness labels are corrected.
 6. **Text tone**: text depends only on `issueCode`, metrics and `skillLevel`, and is rendered from the template catalogue (FR-011).
-7. **Performance**: a 60-second input finishes in ≤ 10 s on the reference mid-range device (the budget for the analysis stage within SC-002's 30 s). This includes accompaniment processing.
+7. **Performance**: a 60-second input finishes in ≤ 10 s on the Nothing Phone (4a), release build (the budget for the analysis stage within SC-002's 30 s). This includes accompaniment processing.
 8. **Accompaniment setting**:
    - `accompaniment = 'off'` → `accompaniment.kind = 'none'`, and the result is identical to the solo pipeline.
    - `'on'` → the accompaniment pipeline always runs. If no repetition is found, it is treated as `backing`.

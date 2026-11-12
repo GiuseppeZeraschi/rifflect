@@ -6,7 +6,9 @@
 
 ## Summary
 
-Rifflect is a cross-platform (iOS and Android) **React Native** app that:
+**Delivery scope (v1)**: personal use on the owner's **Nothing Phone (4a)** (Snapdragon 7s Gen 4, 8–12 GB RAM), installed as a signed release APK and not published on any store. The codebase stays cross-platform React Native so iPhone and store releases remain possible later, but iOS native work is deferred (see the "Deferred: iOS" section in [tasks.md](./tasks.md)).
+
+Rifflect is a **React Native** app (Android first; iOS later) that:
 - records a guitar practice take with the phone's camera and microphone
 - analyses it **entirely on the phone** after the take ends
 - gives written feedback with scores on timing and technique
@@ -22,11 +24,11 @@ All decisions and alternatives are in [research.md](./research.md).
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.x (strict) on React Native (New Architecture) via the latest stable Expo SDK at project start. Swift 5.9+ and Kotlin 2.x for two small local native modules.
+**Language/Version**: TypeScript 5.x (strict) on React Native (New Architecture) via the latest stable Expo SDK at project start. Kotlin 2.x for two small local native modules (Swift 5.9+ versions deferred with iOS).
 
 **Primary Dependencies**:
-- **Platform**: Expo (dev builds / EAS Build)
-- **Camera and on-device ML**: react-native-vision-camera (recording and frame processors), MediaPipe Tasks Vision Hand Landmarker (iOS/Android SDKs)
+- **Platform**: Expo development builds and release APKs, built locally on Windows with `npx expo prebuild` + Gradle (Android Studio / Android SDK). No EAS or Expo account needed; EAS Build becomes relevant only if iOS is added.
+- **Camera and on-device ML**: react-native-vision-camera (recording and frame processors), MediaPipe Tasks Vision Hand Landmarker (Android SDK; iOS SDK later)
 - **Storage**: expo-sqlite + drizzle-orm, expo-file-system, expo-media-library, expo-sharing, expo-video-thumbnails (library thumbnails)
 - **UI**: expo-video, expo-router, victory-native (Skia charts), zustand
 - **Background work**: react-native-worklets-core (off-UI-thread analysis)
@@ -37,14 +39,16 @@ All decisions and alternatives are in [research.md](./research.md).
 - **Unit and component**: Jest + React Native Testing Library
 - **Data layer**: Drizzle repositories tested on Node SQLite
 - **Analysis engine**: fixture suite (real clips + landmark JSONL)
-- **End-to-end**: Maestro flows on devices
-- **Accuracy**: Node evaluation harness over a labelled corpus (SC-003)
+- **End-to-end**: one Maestro smoke flow on the phone; further flows optional
+- **Accuracy**: Node evaluation harness over a small self-labelled set (tuning goals SC-003, SC-008, SC-009)
 
-**Target Platform**: iOS 16+ (iPhone XR/A12 and newer). Android 8.0+ (API 26) with ≥ 4 GB RAM. Reference performance devices are iPhone 12-class and Snapdragon 7-series (2021+) Android.
+**Target Platform**: Android, on the owner's Nothing Phone (4a) (the only target and the performance reference). `minSdkVersion` stays at the Expo SDK default so other Android phones can work, but they are not tested. iOS is deferred.
 
-**Project Type**: Mobile app (single cross-platform codebase, no backend).
+**Project Type**: Mobile app (single cross-platform codebase, Android-only delivery for v1, no backend).
 
-**Performance Goals**:
+**Distribution**: a signed release APK installed with `adb install -r`. One release keystore, kept outside the repo and backed up, signs every build; losing or changing it forces an uninstall, which deletes all takes. Android Auto Backup is disabled (`allowBackup: false`); backups are the owner's job via "Export all" (FR-031).
+
+**Performance Goals** (measured on a release build; debug builds are much slower):
 - **Feedback speed** (SC-002): feedback for a 1-minute take within 30 s, with the engine alone ≤ 10 s.
 - **Camera**: preview at 30 fps with the frame processor at 12 fps and no dropped recording frames.
 - **App**: cold start to the Record screen ≤ 2 s.
@@ -56,7 +60,7 @@ All decisions and alternatives are in [research.md](./research.md).
 - **Handedness**: works for left- and right-handed players.
 
 **Scale/Scope**:
-- One user per install.
+- One user, one phone.
 - Up to ~500 saved takes (storage limited by the phone, ~10–40 MB per minute of video).
 - ~10 screens, 2 local native modules, ~20 issue codes in v1.
 - 4 user stories: P1 feedback, P2 library, P2 loop/backing track, P3 progress.
@@ -128,7 +132,7 @@ src/
 └── ui/                           # shared components, theme, accessibility helpers
 
 modules/
-├── rifflect-hand-landmarker/     # Expo module: VisionCamera plugin + MediaPipe (ios/, android/, src/)
+├── rifflect-hand-landmarker/     # Expo module: VisionCamera plugin + MediaPipe (android/, src/; ios/ deferred)
 └── rifflect-audio-decoder/       # Expo module: decode audio track to PCM
 
 assets/models/hand_landmarker.task
@@ -139,8 +143,9 @@ tests/
 ├── fixtures/                     # audio clips, landmark JSONL, expected findings
 └── components/
 
-e2e/                              # Maestro flows (V1–V5 from quickstart)
+e2e/                              # Maestro smoke flow (+ optional flows from quickstart)
 tools/eval/                       # accuracy harness (Node) + landmark extraction script (Python MediaPipe)
+plugins/withReleaseSigning.js     # Expo config plugin: injects the release signingConfig into the generated android/ project
 ```
 
 **Structure Decision**: This is a single Expo/React Native app at the repository root, with no `api/` or backend because all processing is on the phone (FR-014).
@@ -150,22 +155,25 @@ tools/eval/                       # accuracy harness (Node) + landmark extractio
 ## Phase ordering & key risks (input for `/speckit-tasks`)
 
 1. **Spike first, before building on it**:
-   - **(a) Live landmarks**: the MediaPipe frame processor running at 12 fps during 1080p30 recording on a reference Android device.
+   - **(a) Live landmarks**: the MediaPipe frame processor running at 12 fps during 1080p30 recording on the Nothing Phone (4a), release build.
    - **(b) Clock alignment**: landmark timestamps vs. decoded-audio timestamps, tolerance ±20 ms.
 
    Failure fallbacks are in research R3 and R4.
 2. **Analysis engine timing path** with synthetic and fixture tests. This is independent of the phone, so it can run in parallel with the spikes.
 3. **P1 slice** (Story 1): onboarding → record → analyse → feedback screen.
-4. **P2 slice** (Story 2): save, library, delete, export, recovery.
+4. **P2 slice** (Story 2): save, library, delete, export, "Export all" backup, recovery.
 5. **P2 slice** (Story 4): accompaniment pipeline in the engine, built against synthetic mixes first (solo lead + looped rhythm at known gains), then the Record-screen setting, feedback banner and re-analysis. It builds on the solo timing path from step 2 and the landmark stream from step 3.
 6. **P3 slice** (Story 3): progress queries, charts, recurring issues, compare, solo/accompanied filter.
-7. **Accuracy corpus and evaluation**: tune thresholds against SC-003, SC-008 and SC-009. The corpus needs real lead-over-loop takes from several loopers and amps. On-device benchmark for SC-002, including an accompaniment fixture.
+7. **Accuracy tuning and benchmarks**: tune thresholds against the SC-003, SC-008 and SC-009 tuning goals on a small self-labelled set (your own guitar, amp and loop pedal). Release-build benchmark on the Nothing Phone (4a) for SC-002, including an accompaniment fixture.
+
+**Deferred: iOS**: the Swift halves of both native modules, iOS permissions testing and EAS cloud builds. Nothing in the shared TypeScript code may assume Android, so this stays a contained addition.
 
 **Top risks**:
 - Technique accuracy from hand landmarks alone (SC-003 at 70%). *Mitigation*: confidence floor, honest limitations, threshold tuning on the corpus.
-- Timing accuracy without a metronome: a consistently unsteady player can pull the detected beat with them (research R6). *Mitigation*: report drift and within-beat spread, and validate against teacher labels in the SC-003 corpus. A built-in metronome can be added later if needed.
+- Timing accuracy without a metronome: a consistently unsteady player can pull the detected beat with them (research R6). *Mitigation*: report drift and within-beat spread, and validate against labels in the SC-003 tuning set. A built-in metronome can be added later if needed.
 - Separating live guitar from a loop of the same guitar through the same amp (SC-009). *Mitigation*: REPET exploits the loop's exact repetition, the camera's picking-hand strokes confirm live notes, clarity feedback is suppressed when attribution is weak, and unison and changing loops are reported as limitations (research R16).
-- Performance on older Android phones. *Mitigation*: tiered frame rate, chunked PCM, JSI escape hatch for DSP.
+- Performance on the Nothing Phone (4a) (mid-range Snapdragon 7s Gen 4). *Mitigation*: measure on a release build early (spikes), chunked PCM, JSI escape hatch for DSP; post-take landmark extraction if live tracking is too heavy.
+- Losing all takes on an app update (signing key lost or changed, or switching between debug and release installs). *Mitigation*: one backed-up release keystore for every installed build, daily use only on release builds, and "Export all" (FR-031).
 
 ## Complexity Tracking
 

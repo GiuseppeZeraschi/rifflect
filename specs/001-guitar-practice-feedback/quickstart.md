@@ -5,19 +5,41 @@ This guide shows how to run the app and check that each user story works from st
 ## Prerequisites
 
 - Node.js LTS, npm, Git.
-- **Android**: Android Studio + SDK, and a physical Android phone (8.0+) with USB debugging. The full flow needs a real camera and microphone.
-- **iOS** (developing on Windows): an Expo account and EAS CLI (`npm i -g eas-cli`). iOS dev builds are made in the cloud with `eas build --profile development --platform ios`. Install them on a registered iPhone (iOS 16+).
+- **Android**: Android Studio + SDK (includes `adb`), a JDK as required by the Expo SDK, and the **Nothing Phone (4a)** with Developer options and USB debugging enabled. The full flow needs a real camera and microphone.
 - A guitar, and a phone stand or clamp.
-- Maestro CLI, for end-to-end flows.
+- Optional: Maestro CLI, for the end-to-end smoke flow.
+- Not needed for v1: an Expo account, EAS, a Mac or an Apple account (iOS is deferred).
 
-## Setup
+## Setup (development)
 
 ```bash
 npm install
-npx expo prebuild            # generates native projects including local modules
-npx expo run:android --device
-# iOS: eas build --profile development --platform ios, then: npx expo start --dev-client
+npx expo prebuild --platform android   # generates android/ including the local modules
+npx expo run:android --device          # debug build + Metro, for development only
 ```
+
+## Release build and install (daily use)
+
+Do this once to create the signing key. **Keep the keystore and its passwords safe and backed up (e.g. a password manager plus an off-laptop copy). If they're lost, future updates can't be installed without uninstalling, and uninstalling deletes every take.**
+
+```bash
+# One-time: create the release keystore OUTSIDE the repo
+keytool -genkeypair -v -keystore %USERPROFILE%\keys\rifflect-release.jks -alias rifflect -keyalg RSA -keysize 2048 -validity 10000
+# Then add to %USERPROFILE%\.gradle\gradle.properties (never commit these):
+#   RIFFLECT_STORE_FILE=C:/Users/<you>/keys/rifflect-release.jks
+#   RIFFLECT_KEY_ALIAS=rifflect
+#   RIFFLECT_STORE_PASSWORD=...
+#   RIFFLECT_KEY_PASSWORD=...
+```
+
+Every time you want to install a new version:
+
+```bash
+npm run build:apk      # expo prebuild + gradlew assembleRelease, signed by plugins/withReleaseSigning.js
+npm run install:apk    # adb install -r <apk>: updates in place and keeps all takes
+```
+
+**Expected**: the app updates without losing takes. Don't install a debug build over the release build (or the reverse); the signatures differ and Android will refuse, or require an uninstall.
 
 ## Automated checks
 
@@ -25,22 +47,24 @@ npx expo run:android --device
 npm run typecheck            # tsc --noEmit
 npm test                     # Jest: analysis engine, scoring, templates, repositories, components
 npm run test:analysis        # engine fixture suite only (tests/analysis)
-npm run eval -- --corpus <path>   # accuracy harness (SC-003), prints agreement % per category
-maestro test e2e/            # end-to-end flows on a connected device
+npm run eval -- --corpus <path>   # accuracy harness (SC-003 tuning goal), prints precision and recall per category
+maestro test e2e/smoke.yaml  # optional: end-to-end smoke flow on the connected phone
 ```
 
-**Expected**: all green. `test:analysis` includes the contract guarantees in [analysis-engine.md](./contracts/analysis-engine.md#guarantees-tested). The eval harness prints timing and technique agreement, with targets of ≥ 80% and ≥ 70%.
+**Expected**: all green. `test:analysis` includes the contract guarantees in [analysis-engine.md](./contracts/analysis-engine.md#guarantees-tested). The eval harness prints timing and technique precision; the tuning goals are ≥ 80% and ≥ 70%, but missing them doesn't block v1.
+
+**Where to run the manual scenarios**: on the Nothing Phone (4a) with an installed **release** build, unless a step says otherwise.
 
 ## Manual validation scenarios
 
 ### V1: First take with feedback (Story 1, SC-001, SC-002)
 
 1. Fresh install, then open the app. Complete onboarding: allow permissions, choose right-handed, beginner.
-2. On Record, prop the phone so both hands and the neck are in view. `framing-status` shows **ok**.
+2. On Record, prop the phone so both hands are in view, with the fretting hand fully in frame. `framing-status` shows **ok**.
 3. Cover the fretting hand. The status changes to `fretting_out_of_frame` with a hint.
 4. Enter a target tempo of 80 BPM, record about 60 s of quarter-note strumming at roughly that tempo, then stop.
 5. **Expected**:
-   - The analysing screen shows progress, and feedback appears within 30 s on a reference device.
+   - The analysing screen shows progress, and feedback appears within 30 s.
    - There is ≥ 1 timing point and ≥ 1 technique point.
    - Timing feedback states the tempo actually played and how far it was from the 80 BPM target.
    - Tapping a point seeks the video to that time.
@@ -61,6 +85,8 @@ maestro test e2e/            # end-to-end flows on a connected device
 3. Force-quit, restart the phone, and reopen in airplane mode. **Expected**: the take plays and its feedback is intact (SC-007).
 4. Export to Photos. **Expected**: the video appears in the camera roll.
 5. Delete it (with confirmation). **Expected**: it is gone from the library, and the storage used goes down.
+6. Save two more takes, then Settings → `export-all`, and pick a folder (e.g. a `Rifflect backups` folder in Documents). **Expected**: a `rifflect-export-<date>` folder containing `takes.json` and one sub-folder per saved take with `video.mp4` and `feedback.txt` ([data-model.md](./data-model.md#export-all-backup-layout-fr-031)). Unsaved takes are not included.
+7. Build and install a new release APK (`npm run build:apk && npm run install:apk`). **Expected**: the update installs in place, and every saved take, label and score is still there (SC-007).
 
 ### V4: Progress (Story 3)
 
@@ -77,7 +103,7 @@ maestro test e2e/            # end-to-end flows on a connected device
 2. Kill the app during analysis, then relaunch. **Expected**: analysis resumes or is offered again.
 3. Fill the device until free space is below the threshold. **Expected**: `storage-warning` appears before recording and before saving.
 
-### V6: Playing over a loop or backing track (Story 4, SC-008, SC-009)
+### V6: Playing over a loop or backing track (Story 4; SC-008, SC-009 tuning goals)
 
 1. With the accompaniment setting on **Auto**, record a 4-bar rhythm loop into a loop pedal through an amp. Then record a 60 s take playing lead over it. Rush the lead deliberately in bars 5–6, and leave a single buzzing note in the *loop* only.
 2. **Expected**:
@@ -95,8 +121,8 @@ maestro test e2e/            # end-to-end flows on a connected device
 
 ## Performance check (SC-002)
 
-In a dev build, open Settings → Developer → Benchmark. Run the 60 s and 300 s fixtures.
+In the installed **release** build, tap the version number in Settings 7 times to reveal Developer → Benchmark. Run the 60 s and 300 s fixtures. (Debug builds are much slower and their numbers don't count.)
 
-**Expected on reference devices** (iPhone 12-class, Snapdragon 7-series Android):
+**Expected on the Nothing Phone (4a)**:
 - 60 s fixture: end-to-end ≤ 30 s, and the engine alone ≤ 10 s, both for the solo fixture and for the lead-over-loop fixture.
 - 300 s fixture: it finishes, and progress updates at least every 2 s.

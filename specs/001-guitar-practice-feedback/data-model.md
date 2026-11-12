@@ -184,3 +184,20 @@ A recurring issue is computed by query for a practice item (or for all items) ov
   thumb.jpg          # library thumbnail
 <cache>/analysis/<takeId>.f32   # decoded mono PCM, deleted after analysis
 ```
+
+### "Export all" backup layout (FR-031)
+
+Written to a folder the user picks (Android Storage Access Framework). Export is one-way: v1 has no import.
+
+```text
+<chosen folder>/rifflect-export-<YYYY-MM-DD-HHmm>/
+  takes.json                          # array: { id, recordedAt, durationMs, label, title, targetTempoBpm,
+                                      #   accompanimentKind, timingScore, techniqueScore, summary,
+                                      #   points: [{ category, issueCode, startMs, observation, suggestion }],
+                                      #   limitations, engineVersion }
+  <YYYY-MM-DD_HHmm>_<label-or-untitled>/
+    video.mp4
+    feedback.txt                      # human-readable: scores, summary, each point with its time
+```
+
+Only saved takes are exported. Landmark files and thumbnails are not exported.

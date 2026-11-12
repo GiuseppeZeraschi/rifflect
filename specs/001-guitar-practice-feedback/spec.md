@@ -99,7 +99,7 @@ A guitarist records a rhythm part into a loop pedal (or starts a backing track, 
 - Left-handed players: analysis must work for both left- and right-handed playing.
 - Camera or microphone permission denied: the app explains why it needs access and how to grant it; it does not attempt to record.
 - Analysis cannot complete (e.g. app closed mid-analysis, phone low on battery or overheating): the take is kept and the user can request feedback again later.
-- Older or lower-powered phones: analysis may take longer; the app shows progress and the user can leave the screen while it finishes.
+- Long takes (up to 5 minutes): analysis may take longer; the app shows progress and the user can leave the screen while it finishes.
 
 ## Requirements *(mandatory)*
 
@@ -132,6 +132,7 @@ A guitarist records a rhythm part into a loop pedal (or starts a backing track, 
 - **FR-017**: System MUST show total storage used by saved takes and warn when phone storage is low.
 - **FR-018**: Saved takes MUST remain available after the app is closed or the phone is restarted, and MUST be viewable without an internet connection.
 - **FR-019**: Users MUST be able to export or share a saved take's video to the phone's photo/video library or other apps.
+- **FR-031**: Users MUST be able to export all saved takes at once (videos plus a readable summary of each take's feedback and scores) to a folder they choose, as a backup.
 
 **Progress**
 
@@ -165,11 +166,16 @@ A guitarist records a rhythm part into a loop pedal (or starts a backing track, 
 ### Measurable Outcomes
 
 - **SC-001**: A new user can go from opening the app for the first time to reading feedback on their first take in under 3 minutes.
-- **SC-002**: On supported phones, feedback for a 1-minute take is available within 30 seconds of the user stopping the recording in 90% of cases, with no internet connection.
-- **SC-003**: In a panel review, guitar teachers agree with at least 80% of timing observations and 70% of technique observations on a test set of takes.
-- **SC-007**: 100% of saved takes remain playable, with their feedback, after the app is closed and reopened, including with no internet connection.
+- **SC-002**: On the owner's phone (Nothing Phone (4a)), using an installed release build, feedback for a 1-minute take is available within 30 seconds of the user stopping the recording in 90% of cases, with no internet connection.
+- **SC-007**: 100% of saved takes remain playable, with their feedback, after the app is closed and reopened, including with no internet connection, and after installing an updated version of the app.
+
+### Accuracy tuning goals (checked on a self-labelled set; not v1 acceptance gates)
+
+These guide threshold tuning. They are measured on a small set of takes labelled by the owner (or a teacher, if available). Missing them does not block v1; they become acceptance criteria if the app is later published.
+
+- **SC-003**: The labeller agrees with at least 80% of timing observations and 70% of technique observations on a test set of takes.
 - **SC-008**: On a test set of lead-over-loop takes, Auto mode correctly detects the loop in at least 90% of takes. It wrongly reports accompaniment in no more than 5% of solo takes.
-- **SC-009**: On lead-over-loop takes, guitar teachers agree with at least 75% of timing observations. No more than 10% of reported clarity problems turn out to come from the accompaniment instead of the live playing.
+- **SC-009**: On lead-over-loop takes, the labeller agrees with at least 75% of timing observations. No more than 10% of reported clarity problems turn out to come from the accompaniment instead of the live playing.
 
 ### Product goals (post-launch; not v1 acceptance criteria)
 
@@ -186,10 +192,11 @@ These are not measured by the app or required for v1 acceptance; the app collect
 - v1 checks framing from hand visibility and lighting; it does not detect the guitar neck itself.
 - Single live player only. The app analyses one guitarist playing live per take. Recorded accompaniment (the player's own loops, backing tracks, drum machines, clicks) is supported, but playing live with other people (duets/bands) is out of scope.
 - Accompaniment is heard through the same microphone (from an amp or speaker). Separate audio inputs (e.g. a multi-channel USB audio interface) are out of scope for v1.
-- AI analysis runs entirely on the phone, so the whole app works offline. A minimum phone capability (to be set during planning) is needed for analysis within the SC-002 target.
+- AI analysis runs entirely on the phone, so the whole app works offline.
 - No user account is required in v1; all takes, feedback and progress live on the phone. Cloud backup and syncing between devices are out of scope for v1.
 - Recordings and feedback are personal data belonging to the user; they are never shared with anyone unless the user explicitly exports or shares them.
 - Feedback is in English for v1.
 - The app has no built-in metronome, count-in or backing tracks in v1, and plays no sound while recording. Timing is judged against the accompaniment's beat when the user plays over one, otherwise against the player's own detected beat.
 - Feedback is about timing and technique, not about which notes are correct for a specific song; checking against sheet music or tabs is out of scope for v1.
-- The app runs on modern iOS and Android phones with a working front or rear camera and microphone.
+- v1 is for personal use by its owner: an Android app installed directly on one phone (Nothing Phone (4a)), not published on any app store. iPhone support and store release are possible later and should not be designed out, but are out of scope for v1.
+- Because takes exist only on the phone, the owner is responsible for backups (FR-031). Updating the app must never delete existing takes.
