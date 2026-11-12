@@ -1,19 +1,14 @@
-import { StyleSheet } from 'react-native';
+import { useCameraPermission, useMicrophonePermission } from 'react-native-vision-camera';
 
-import { Text, View } from '@/ui/components/Themed';
-import { fontSize, spacing } from '@/ui/theme';
+import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
+import { updateProfile } from '@/features/profile/useProfile';
 
-/** Onboarding placeholder (app shell, T035). The real flow (permissions, handedness, skill) is T055. */
+/**
+ * Onboarding route (tasks.md T055). Saving the profile flips the root layout's Stack.Protected
+ * guards, which takes the user to the tabs (Record is the first tab).
+ */
 export default function OnboardingScreen() {
-  return (
-    <View testID="onboarding-welcome" style={styles.container}>
-      <Text style={styles.title}>Welcome to Rifflect</Text>
-      <Text>Setup comes next.</Text>
-    </View>
-  );
+  const camera = useCameraPermission();
+  const microphone = useMicrophonePermission();
+  return <OnboardingFlow camera={camera} microphone={microphone} onFinish={(p) => updateProfile(p)} />;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
-  title: { fontSize: fontSize.heading, fontWeight: 'bold' },
-});

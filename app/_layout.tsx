@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useDbMigrations } from '@/data/db/client';
+import { AnalysisDoneToast } from '@/features/feedback/AnalysisDoneToast';
 import { useProfileGate } from '@/features/onboarding/useProfileGate';
 import { analysisQueue } from '@/jobs';
 import { useColorScheme } from '@/ui/components/useColorScheme';
@@ -69,11 +70,14 @@ function AppNavigator() {
         <Stack>
           <Stack.Protected guard={hasProfile}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="take/[id]/index" options={{ title: 'Feedback' }} />
+            <Stack.Screen name="take/[id]/analysing" options={{ title: 'Analysing', gestureEnabled: false }} />
           </Stack.Protected>
           <Stack.Protected guard={!hasProfile}>
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
           </Stack.Protected>
         </Stack>
+        {hasProfile ? <AnalysisDoneToast /> : null}
       </ThemeProvider>
     </View>
   );

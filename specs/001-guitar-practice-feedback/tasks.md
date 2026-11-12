@@ -340,17 +340,17 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **Reports**: `saveReport(takeId, result: AnalysisResult, processingMs)`, which maps `AnalysisResult` to rows and replaces any existing report, and `getReportWithPoints(takeId)`
 
   T040 must pass.
-- [ ] T055 [US1] Build the onboarding route `app/onboarding.tsx` with steps in `src/features/onboarding/`:
+- [X] T055 [US1] Build the onboarding route `app/onboarding.tsx` with steps in `src/features/onboarding/`:
   - **Steps**: Welcome → permissions explainer (requests camera and microphone via VisionCamera) → handedness (`onboarding-handedness-left` / `onboarding-handedness-right`) → skill level (`onboarding-skill-beginner|intermediate|advanced`) → save the profile → `/(tabs)/record`
   - **Permission denied**: show an explanation and an "Open Settings" button (`permission-open-settings`) via `Linking.openSettings()`; never attempt to record
 - [ ] T056 [P] [US1] Implement the camera session helper in `src/capture/cameraSession.ts`. It picks the front or back device from the profile, a 1080p30 format with audio, and the frame-processor fps cap. It exposes a hook `useCameraSession()` for the Record screen
-- [ ] T057 [US1] Implement the framing check in `src/capture/framingCheck.ts`:
+- [X] T057 [US1] Implement the framing check in `src/capture/framingCheck.ts`:
   - **Inputs**: a pure function over the last 30 `HandsResult` frames.
   - **Statuses**:
     - `ok` when both hands are detected in ≥ 80% of frames, the fretting hand's landmarks are all inside [0.02, 0.98], and brightness is ≥ the threshold.
     - `hands_missing`, `fretting_out_of_frame` or `low_light` otherwise.
   - **Hint**: a repositioning hint string for each status.
-  - **Wiring**: wire it to the frame output via `useFramingStatus()` in `src/capture/useFramingStatus.ts` (worklet → JS thread with `scheduleOnRN` / `runOnJS` from `react-native-worklets`, whichever the installed version provides).
+  - **Wiring**: moved to T059, where the camera and frame output are set up. This task delivers the pure check plus a `FramingWindow` ring buffer.
 
   Tests go in `tests/unit/capture/framingCheck.test.ts`.
 - [ ] T058 [US1] Implement the recording controller in `src/capture/recordingController.ts`:
@@ -364,11 +364,12 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **`stop()`**: finalise the video, close the writer, call `completeCapture`, and enqueue analysis unless the take is `too_short`.
   - **Interruption**: `AppState` changes to background or recording errors stop the recording and call `markInterrupted`.
 - [ ] T059 [US1] Build the Record screen in `app/(tabs)/record.tsx` with components in `src/features/record/`:
+  - **Framing wiring** (from T057): `useFramingStatus()` in `src/capture/useFramingStatus.ts` feeds frame-output hand results into a `FramingWindow` (worklet → JS thread with `scheduleOnRN` / `runOnJS` from `react-native-worklets`, whichever the installed version provides), throttled to a few UI updates per second.
   - **Camera and framing**: camera preview, plus a framing checklist (`framing-status` showing the status and hint).
   - **Tempo**: optional target tempo (`tempo-input`, an integer that rejects values outside "30–300", empty = none).
   - **Recording**: `record-button` with an elapsed timer and the 5:00 maximum, and `storage-warning` when free space is low.
   - **After stopping**: navigate to `/take/[id]/analysing`.
-- [ ] T060 [US1] Implement the analysis runner in `src/jobs/runAnalysis.ts`, injected into the queue (T034):
+- [X] T060 [US1] Implement the analysis runner in `src/jobs/runAnalysis.ts`, injected into the queue (T034):
   1. Load the take and profile snapshot.
   2. Call `decodeAudioTrack(video, { sampleRate: 22050, mono: true })` and read the PCM (T023).
   3. Parse landmarks (T022). If `landmarksPath` is null, call `extractLandmarksFromVideo(video, 12)` first.
@@ -378,16 +379,16 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   7. Delete the PCM cache.
 
   Any native error code sets `failed`.
-- [ ] T061 [US1] Build the analysing screen `app/take/[id]/analysing.tsx`. It shows progress from the progress store (`analysis-progress`) and a "Leave – we'll let you know when it's ready" action (`analysis-leave`), which records the take ID in the progress store's `leftTakeIds`. On completion it does `router.replace('/take/[id]')`. On `failed` it shows a Retry button that calls `analysisQueue.retry`
-- [ ] T062 [US1] Build the analysis-done notice in `src/features/feedback/AnalysisDoneToast.tsx`, mounted in `app/_layout.tsx`. It subscribes to the progress store and, when a take in `leftTakeIds` finishes (`analysed`, `no_playing` or `failed`), shows `analysis-done-toast` ("Feedback ready – View") on whatever screen is open. Tapping it opens `/take/[id]` and removes the ID from `leftTakeIds`
-- [ ] T063 [US1] Build the feedback screen `app/take/[id]/index.tsx` with components in `src/features/feedback/`:
+- [X] T061 [US1] Build the analysing screen `app/take/[id]/analysing.tsx`. It shows progress from the progress store (`analysis-progress`) and a "Leave – we'll let you know when it's ready" action (`analysis-leave`), which records the take ID in the progress store's `leftTakeIds`. On completion it does `router.replace('/take/[id]')`. On `failed` it shows a Retry button that calls `analysisQueue.retry`
+- [X] T062 [US1] Build the analysis-done notice in `src/features/feedback/AnalysisDoneToast.tsx`, mounted in `app/_layout.tsx`. It subscribes to the progress store and, when a take in `leftTakeIds` finishes (`analysed`, `no_playing` or `failed`), shows `analysis-done-toast` ("Feedback ready – View") on whatever screen is open. Tapping it opens `/take/[id]` and removes the ID from `leftTakeIds`
+- [X] T063 [US1] Build the feedback screen `app/take/[id]/index.tsx` with components in `src/features/feedback/`:
   - **Player**: `expo-video` with a seek API.
   - **Scores**: `score-timing` and `score-technique` (show "Not enough data" when null), plus the summary.
   - **Points**: the list of `feedback-point-<i>` items (category icon, observation, suggestion, time). Tapping one seeks to `startMs` and plays.
   - **Limitations**: a `limitations` section.
   - **Special states**: dedicated states for `no_playing` ("We couldn't find playing to analyse") and `too_short` ("Takes need to be at least 5 seconds").
-- [ ] T064 [P] [US1] Write a component test in `tests/components/feedbackScreen.test.tsx`: a mocked report renders scores, points and limitations; tapping `feedback-point-0` calls the player's seek with `startMs`; null scores render "Not enough data"; the `no_playing` state hides the points list
-- [ ] T065 [US1] Build a minimal Settings screen `app/(tabs)/settings.tsx` with components in `src/features/settings/`: handedness (`settings-handedness`), skill level (`settings-skill`) and preferred camera, persisted via `profileRepo` (FR-005)
+- [X] T064 [P] [US1] Write a component test in `tests/components/feedbackScreen.test.tsx`: a mocked report renders scores, points and limitations; tapping `feedback-point-0` calls the player's seek with `startMs`; null scores render "Not enough data"; the `no_playing` state hides the points list
+- [X] T065 [US1] Build a minimal Settings screen `app/(tabs)/settings.tsx` with components in `src/features/settings/`: handedness (`settings-handedness`), skill level (`settings-skill`) and preferred camera, persisted via `profileRepo` (FR-005)
 - [ ] T066 [US1] Write the Maestro smoke flow `e2e/v1-first-take.yaml` (onboarding → Record → record 10 s → wait for feedback → assert `score-timing` visible → tap `feedback-point-0`), runnable against the installed app on the phone. Optionally also `e2e/v2-too-short.yaml` (record 3 s → assert the minimum-length message)
 
 **Checkpoint**: US1 is fully functional on its own. Quickstart V1 and V2 pass on the Nothing Phone (4a) with an installed release build, including in airplane mode. This is the MVP.

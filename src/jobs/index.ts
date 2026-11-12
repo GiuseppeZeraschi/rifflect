@@ -1,32 +1,30 @@
 /**
- * App-wide job singletons: the analysis queue and its progress store.
- *
- * The runner is set once the analysis pipeline exists (src/jobs/runAnalysis.ts, tasks.md T060).
- * Until then, queued takes fail with a clear message rather than silently doing nothing.
+ * App-wide job singletons: the analysis queue (wired to the real runner) and its progress store.
  */
 import { useStore } from 'zustand';
 
 import { db } from '@/data/db/client';
-import { createAnalysisQueue, type Runner } from './analysisQueue';
+import { takeFiles } from '@/data/files';
+import { decodeAudioTrack, readPcmChunk } from '@/native/audioDecoder';
+import { readLandmarksFile } from '@/native/landmarksFile';
+import { createAnalysisQueue } from './analysisQueue';
 import {
   connectProgressStore,
   createAnalysisProgressStore,
   type AnalysisProgressState,
 } from './analysisProgressStore';
+import { createRunner } from './runAnalysis';
 
-let runner: Runner = async () => {
-  throw new Error('Analysis is not available yet in this build');
-};
-
-/** Install the real analysis runner (called once at start-up). */
-export function setAnalysisRunner(r: Runner) {
-  runner = r;
-}
-
-export const analysisQueue = createAnalysisQueue({
+const runner = createRunner({
   db,
-  runner: (takeId, onProgress, signal) => runner(takeId, onProgress, signal),
+  files: takeFiles,
+  decodeAudioTrack,
+  readPcmChunk,
+  readLandmarks: async (uri) => (await readLandmarksFile(uri)).frames,
+  // extractLandmarksFromVideo: added with the native hand-landmarker module (tasks.md T021).
 });
+
+export const analysisQueue = createAnalysisQueue({ db, runner });
 
 export const analysisProgress = createAnalysisProgressStore();
 connectProgressStore(analysisQueue, analysisProgress);

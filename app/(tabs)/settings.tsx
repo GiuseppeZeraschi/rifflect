@@ -1,17 +1,41 @@
-import { StyleSheet } from 'react-native';
+/** Settings (tasks.md T065, FR-005): handedness, skill level and camera. Backup/storage come with US2. */
+import { CAMERA_OPTIONS, HANDEDNESS_OPTIONS, SKILL_OPTIONS, updateProfile, useProfile } from '@/features/profile/useProfile';
+import { Body, Heading, OptionGroup, Screen } from '@/ui/components/controls';
 
-import { Text, View } from '@/ui/components/Themed';
-
-/** Placeholder Settings tab (app shell, T037). Replaced by the real screen in its user-story phase. */
 export default function SettingsScreen() {
+  const profile = useProfile();
+  if (!profile) return <Screen>{null}</Screen>;
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
-    </View>
+    <Screen testID="settings-screen">
+      <Heading>Settings</Heading>
+      <Body muted>Changes apply to new takes. Takes you’ve already recorded keep their original settings.</Body>
+
+      <Body>How do you play?</Body>
+      <OptionGroup
+        label="Handedness"
+        testIDPrefix="settings-handedness"
+        options={HANDEDNESS_OPTIONS}
+        value={profile.handedness}
+        onChange={(handedness) => updateProfile({ handedness })}
+      />
+
+      <Body>Your level</Body>
+      <OptionGroup
+        label="Skill level"
+        testIDPrefix="settings-skill"
+        options={SKILL_OPTIONS}
+        value={profile.skillLevel}
+        onChange={(skillLevel) => updateProfile({ skillLevel })}
+      />
+
+      <Body>Camera</Body>
+      <OptionGroup
+        label="Preferred camera"
+        testIDPrefix="settings-camera"
+        options={CAMERA_OPTIONS}
+        value={profile.preferredCamera}
+        onChange={(preferredCamera) => updateProfile({ preferredCamera })}
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: 'bold' },
-});
