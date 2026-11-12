@@ -239,7 +239,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Tests for User Story 1 ⚠️ (write first and confirm they fail)
 
-- [ ] T036 [P] [US1] Write timing engine tests in `tests/analysis/timing.test.ts` using `tests/helpers/synth.ts`:
+- [X] T036 [P] [US1] Write timing engine tests in `tests/analysis/timing.test.ts` using `tests/helpers/synth.ts`:
   - Onsets are detected within ±10 ms, with recall ≥ 95% at SNR 20 dB
   - Tempo is estimated within ±1 BPM for 60, 90, 120, 160 and 200 BPM
   - A target tempo resolves the half/double ambiguity (e.g. a 70 BPM target on a 140 BPM eighth-note pattern gives 70)
@@ -247,13 +247,13 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - A 6 BPM linear increase emits `timing.tempo_drift_up`
   - Played 86 vs target 80 emits `timing.off_target_tempo` with `targetDeltaBpm ≈ 6`
   - A steady, accurate input emits `timing.steady`
-- [ ] T037 [P] [US1] Write technique engine tests in `tests/analysis/technique.test.ts` using `tests/helpers/synthLandmarks.ts` and `synth.ts`:
+- [X] T037 [P] [US1] Write technique engine tests in `tests/analysis/technique.test.ts` using `tests/helpers/synthLandmarks.ts` and `synth.ts`:
   - Each landmark rule emits its code: `technique.fret_thumb_over_neck`, `technique.flat_fingers`, `technique.fingers_lifting_high`, `technique.wrist_strain` (held > 5 s only), `technique.inconsistent_strum` and `technique.stopped_strum_motion`
   - Buzz and muted synthetic notes emit `technique.fret_buzz` and `technique.muted_notes`
   - A clean signal emits `technique.clean`
   - With `handedness = 'left'` and mirrored front-camera input, fretting and picking roles are assigned correctly (contract guarantee 5)
   - Missing hands for 50% of the take give `coverage.frettingHand ≈ 0.5` and a `hands_not_visible` limitation with the correct `fromMs` and `toMs`
-- [ ] T038 [P] [US1] Write engine contract tests in `tests/analysis/contract.test.ts` for guarantees 1–7 in [contracts/analysis-engine.md](./contracts/analysis-engine.md#guarantees-tested):
+- [X] T038 [P] [US1] Write engine contract tests in `tests/analysis/contract.test.ts` for guarantees 1–7 in [contracts/analysis-engine.md](./contracts/analysis-engine.md#guarantees-tested):
   - A speech-like or silent input gives `status = 'no_playing'`, `points = []` and null scores
   - An analysed result has ≥ 1 timing and ≥ 1 technique point, or a limitation plus a null score for that category
   - Every `startMs` is in `[0, durationMs]`
@@ -261,12 +261,12 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - Text depends only on `issueCode`, metrics and `skillLevel` (beginner and advanced wording differ for the same finding)
   - No point has `confidence` < 0.6
   - `summary.length` ≤ 140
-- [ ] T039 [P] [US1] Write the fixture-suite runner in `tests/analysis/fixtures.test.ts`:
+- [X] T039 [P] [US1] Write the fixture-suite runner in `tests/analysis/fixtures.test.ts`:
   - **Discovery**: finds each `tests/fixtures/<name>/` with `audio.wav` (mono, any sample rate, resampled to 22,050 in the test helper `tests/helpers/wav.ts`), an optional `landmarks.jsonl`, `input.json` (player, cameraPosition, targetTempoBpm, accompaniment) and `expected.json`.
   - **`expected.json`**: `mustInclude` issue codes, `mustNotInclude` codes, an optional score range, and an expected status.
   - **Check**: asserts each expectation.
   - **Empty folder**: the suite passes with zero fixtures.
-- [ ] T040 [P] [US1] Write repository tests in `tests/unit/data/takesReportsRepo.test.ts`:
+- [X] T040 [P] [US1] Write repository tests in `tests/unit/data/takesReportsRepo.test.ts`:
   - **Take creation**: copies `handednessAtRecording` and `skillLevelAtRecording` from the profile.
   - **Save validation**: "`saved = true` requires `captureStatus = complete` or `interrupted = true`".
   - **Report persistence**:
@@ -286,43 +286,43 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Implementation for User Story 1: analysis engine
 
-- [ ] T042 [US1] Implement onset detection in `src/analysis/timing/onsets.ts`:
+- [X] T042 [US1] Implement onset detection in `src/analysis/timing/onsets.ts`:
   - **Method**: log-magnitude STFT, window 1024, hop 256, band-limited to 80 Hz–1.5 kHz; spectral flux; adaptive median-threshold peak picking.
   - **Output**: onset times in ms, onset strength envelope, and fraction of onset-active frames.
-- [ ] T043 [US1] Implement tempo estimation and beat tracking in `src/analysis/timing/beatGrid.ts`:
+- [X] T043 [US1] Implement tempo estimation and beat tracking in `src/analysis/timing/beatGrid.ts`:
   - **Tempo**: autocorrelation of the onset-strength envelope over 60–220 BPM. An optional `targetTempoBpm` biases half/double resolution.
   - **Grid**: dynamic-programming beat tracker producing a beat grid with local tempo.
   - **Output**: `{ beatTimesMs, bpm, localBpm[] }`, or null if no stable tempo (which raises `tempo_not_detected`).
-- [ ] T044 [US1] Implement timing metrics and findings in `src/analysis/timing/metrics.ts` and `src/analysis/timing/findings.ts`:
+- [X] T044 [US1] Implement timing metrics and findings in `src/analysis/timing/metrics.ts` and `src/analysis/timing/findings.ts`:
   - **Subdivision**: pick the best subdivision (beat, eighth or sixteenth note).
   - **Offsets**: signed offset per onset, mean absolute offset, offset per beat position, within-beat variance, and drift (max − min of local tempo).
   - **Findings**: emit `timing.steady`, `timing.rushing` (< −25 ms), `timing.dragging` (> +25 ms), `timing.uneven_subdivision`, `timing.tempo_drift_up` / `timing.tempo_drift_down` (> 3 BPM) and `timing.off_target_tempo` (> 5%). Each has `startMs`, `endMs`, metrics, severity and confidence.
 
   T036 must pass.
-- [ ] T045 [P] [US1] Implement hand-role assignment in `src/analysis/technique/hands.ts`:
+- [X] T045 [P] [US1] Implement hand-role assignment in `src/analysis/technique/hands.ts`:
   - **Labels**: correct mirrored MediaPipe `side` labels for the front camera.
   - **Roles**: map handedness to roles (right-handed: fretting = left hand).
   - **Smoothing**: exponential smoothing of points.
   - **Coverage**: per-role coverage, and ranges where a hand is missing or the fretting hand is out of frame.
 
   Also export the stroke detector `detectStrokes(pickingHandFrames)` (wrist velocity peak followed by direction reversal), which US4 reuses.
-- [ ] T046 [US1] Implement the fretting-hand analyser in `src/analysis/technique/frettingHand.ts`: `technique.fret_thumb_over_neck` (severity `info` when chord-like stable shapes dominate), `technique.flat_fingers`, `technique.fingers_lifting_high` and `technique.wrist_strain` (extreme flexion held > 5 s), each with a confidence based on visibility
-- [ ] T047 [US1] Implement the picking-hand analyser in `src/analysis/technique/pickingHand.ts`: `technique.inconsistent_strum` (variance of stroke amplitude and timing) and `technique.stopped_strum_motion` (pauses in an otherwise periodic stroke pattern), using `detectStrokes` from T045 and the onsets
-- [ ] T048 [P] [US1] Implement the clarity analyser in `src/analysis/technique/clarity.ts`, emitting `technique.fret_buzz`, `technique.muted_notes`, `technique.unwanted_open_strings` and `technique.clean`:
+- [X] T046 [US1] Implement the fretting-hand analyser in `src/analysis/technique/frettingHand.ts`: `technique.fret_thumb_over_neck` (severity `info` when chord-like stable shapes dominate), `technique.flat_fingers`, `technique.fingers_lifting_high` and `technique.wrist_strain` (extreme flexion held > 5 s), each with a confidence based on visibility
+- [X] T047 [US1] Implement the picking-hand analyser in `src/analysis/technique/pickingHand.ts`: `technique.inconsistent_strum` (variance of stroke amplitude and timing) and `technique.stopped_strum_motion` (pauses in an otherwise periodic stroke pattern), using `detectStrokes` from T045 and the onsets
+- [X] T048 [P] [US1] Implement the clarity analyser in `src/analysis/technique/clarity.ts`, emitting `technique.fret_buzz`, `technique.muted_notes`, `technique.unwanted_open_strings` and `technique.clean`:
   - **Inputs**: a signal, an onset list and an optional per-onset "live confidence" (so US4 can pass the separated live residual and suppress uncertain onsets).
   - **Signals**: broadband high-frequency energy plus inharmonicity just after the onset; decay rate; persistent low open-string partials.
-- [ ] T049 [P] [US1] Implement the posture checks and limitation builder:
+- [X] T049 [P] [US1] Implement the posture checks and limitation builder:
   - **`src/analysis/technique/posture.ts`**: sustained extreme wrist angles, and the frame being cut off. Otherwise emit `posture_not_assessed`.
   - **`src/analysis/limitations.ts`**: build `limitations` entries for `hands_not_visible`, `fretting_hand_out_of_frame`, `low_light` (brightness from landmarks), `noisy_audio` (SNR estimate), `clipping_audio` (peak ≥ 0.99), `landmarks_missing`, `tempo_not_detected` and `take_interrupted`, each with a user-facing message.
-- [ ] T050 [P] [US1] Implement scoring in `src/analysis/scoring/scores.ts`, using the formulas in [research.md R9](./research.md#r9-scores-fr-010):
+- [X] T050 [P] [US1] Implement scoring in `src/analysis/scoring/scores.ts`, using the formulas in [research.md R9](./research.md#r9-scores-fr-010):
   - **Timing**: `100 × clamp(1 − (meanAbsOffsetMs − 10)/90, 0, 1)` minus up to 15 points for drift over 3 BPM.
   - **Technique**: 100 minus the severity-weighted findings per minute, floored at 0, computed only from assessed aspects.
   - **Not enough data**: return `null` when coverage is too low.
-- [ ] T051 [P] [US1] Implement the feedback text catalogue in `src/analysis/feedback-text/catalogue.ts` and `src/analysis/feedback-text/render.ts`:
+- [X] T051 [P] [US1] Implement the feedback text catalogue in `src/analysis/feedback-text/catalogue.ts` and `src/analysis/feedback-text/render.ts`:
   - **Templates**: for every `IssueCode`, an observation template and a suggestion template for each of `beginner`, `intermediate` and `advanced`, with `{placeholders}` filled from metrics. Times are formatted like "around 0:42", bars like "bars 3–6", and ms values rounded to 5.
   - **Summary**: `buildSummary(points, skill)` writes a summary of at most 140 chars from the top 1–3 points.
   - **Recurring text**: `recurringText(code, n, of)` for US3, e.g. "Rushing on beat 4 in 6 of your last 8 takes".
-- [ ] T052 [US1] Implement the orchestrator `analyseTake` in `src/analysis/index.ts`:
+- [X] T052 [US1] Implement the orchestrator `analyseTake` in `src/analysis/index.ts`:
   1. Run DSP and onsets.
   2. If onset-active frames are below 10%, return `no_playing`.
   3. Otherwise run the beat grid, timing findings, hand roles, technique analysers and limitations.
@@ -335,7 +335,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 ### Implementation for User Story 1: capture, persistence & UI
 
 - [X] T053 [P] [US1] Implement the profile repository in `src/data/repositories/profileRepo.ts`: `getProfile()` and `upsertProfile({ handedness, skillLevel, preferredCamera, lastAccompanimentSetting })` with `id = 'me'`, validated against the schema enums
-- [ ] T054 [US1] Implement the takes and reports repositories in `src/data/repositories/takesRepo.ts` and `src/data/repositories/reportsRepo.ts`:
+- [X] T054 [US1] Implement the takes and reports repositories in `src/data/repositories/takesRepo.ts` and `src/data/repositories/reportsRepo.ts`:
   - **Takes**: `createTake(...)` (`captureStatus = 'recording'`, `analysisStatus = 'pending'`, `saved = false`, copies of profile handedness and skill), `completeCapture(id, durationMs, fileSizeBytes, landmarksPath | null)` (sets `too_short` when "`durationMs < 5,000`"), `markInterrupted(id)`, `setAnalysisStatus(id, status)` and `getTake(id)`
   - **Reports**: `saveReport(takeId, result: AnalysisResult, processingMs)`, which maps `AnalysisResult` to rows and replaces any existing report, and `getReportWithPoints(takeId)`
 

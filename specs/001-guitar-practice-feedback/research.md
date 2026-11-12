@@ -61,6 +61,13 @@ The user decided on React Native, so the app runs on Android and iPhone from one
   3. **Metrics**:
      - Signed offset of each onset from the nearest grid subdivision (beat, eighth or sixteenth note, whichever best explains the onsets).
      - Mean absolute offset in ms, tendency to play early (rushing) or late (dragging) per beat position, and tempo drift in BPM across the take.
+- **Implementation notes (2026-11-12, US1 engine)**:
+  - **Grid fit instead of a DP beat tracker.** A beat tracker snaps beats onto the notes, which hides the offsets we want to report. The engine instead assigns onsets to grid units and fits a smooth tempo curve, t(k) = a + b·k + c·k², by least squares with outlier rejection. Residuals are the timing offsets; the curve's slope gives local tempo and drift. The subdivision (beat, eighth or sixteenth) is the coarsest one that explains the onsets.
+  - **Onset precision.** Each spectral-flux peak is refined in the time domain (steepest rise in ~3 ms energy blocks), and peaks where the sound doesn't actually get louder are dropped (spectral changes while a note fades).
+  - **Beat 1 and metre.** With no accompaniment there is no downbeat reference, so the first onset is taken as beat 1, in 4/4.
+  - **Rushing and dragging are per beat position** for solo takes ("you rush beat 4"). Against the player's own fitted grid the overall mean offset is zero by construction, so overall rushing can only be judged against accompaniment (R16).
+  - **No-playing check.** "Fraction of onset-active frames" proved useless (plucked notes are active only briefly). A take counts as playing when at least 4 onsets, and at least 25% of all onsets, are pluck-like: a sharp attack followed by a clearly pitched sound (a genuine autocorrelation peak at 80 Hz – 1 kHz). Strummed chords score lower than single notes on this measure, so the threshold must be checked against real recordings.
+  - **Speed.** A 60 s take with hand tracking takes ~1.2 s in Node on a desktop PC; the on-device benchmark (tasks.md) decides whether the C++ DSP fallback is needed.
 - **Known limitation**: a player who is consistently unsteady can pull the fitted grid with them, which understates timing errors. Drift and the spread of offsets within a beat are still reported, and a built-in metronome is a possible future addition.
 - **Loop, backing track or external metronome**: handled by accompaniment-aware analysis ([R16](#r16-playing-over-a-loop-or-backing-track-story-4)). The beat grid then comes from the accompaniment, not the player.
 - **Rationale**: These are standard music-information-retrieval methods that run in real time, are deterministic and testable, and need no ML model to download.

@@ -8,24 +8,18 @@
  * documents directory moving (e.g. after a restore on another device in future).
  */
 import { type FileStore, joinUri } from './fileStore';
+import { relTakePaths } from './takePaths';
 
-const TAKE_ID = /^[0-9A-Za-z_-]+$/;
-
-function assertTakeId(id: string): void {
-  if (!TAKE_ID.test(id)) throw new Error(`Invalid take id: ${JSON.stringify(id)}`);
-}
+const assertTakeId = (id: string) => void relTakePaths(id);
 
 export function createTakeFiles(store: FileStore) {
-  const relTakeDir = (id: string) => {
-    assertTakeId(id);
-    return `takes/${id}`;
-  };
+  const relTakeDir = (id: string) => relTakePaths(id).dir;
 
   const api = {
     relTakeDir,
-    relVideoPath: (id: string) => `${relTakeDir(id)}/video.mp4`,
-    relLandmarksPath: (id: string) => `${relTakeDir(id)}/landmarks.jsonl`,
-    relThumbPath: (id: string) => `${relTakeDir(id)}/thumb.jpg`,
+    relVideoPath: (id: string) => relTakePaths(id).video,
+    relLandmarksPath: (id: string) => relTakePaths(id).landmarks,
+    relThumbPath: (id: string) => relTakePaths(id).thumb,
 
     /** Absolute URI for a path stored in the database. */
     toAbsolute: (relPath: string) => joinUri(store.documentUri, relPath),

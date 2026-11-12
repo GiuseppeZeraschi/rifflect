@@ -23,6 +23,8 @@ interface AnalysisInput {
   cameraPosition: 'front' | 'back';
   targetTempoBpm?: number;             // 30..300, optional goal; hint + comparison only
   accompaniment: 'auto' | 'on' | 'off'; // FR-024
+  landmarksMirrored?: boolean;          // default false (frames un-mirrored); set from frame.isMirrored
+  interrupted?: boolean;                // recording ended abnormally → take_interrupted limitation
 }
 
 interface LandmarkFrame {
@@ -68,11 +70,11 @@ interface FeedbackPointOut {
 
 ## Guarantees (tested)
 
-1. **No playing found**: if the take contains no detectable guitar playing (speech, silence, under 10% onset-active frames), the result has `status = 'no_playing'`, `points = []` and both scores `null`. The engine never makes up findings (FR-012). With accompaniment, this applies to the *live* playing: a take where only the loop or backing track is heard, with no live onsets attributed, is `no_playing`.
+1. **No playing found**: if the take contains no detectable guitar playing (speech, silence: fewer than 4 pluck-like onsets, i.e. a sharp attack followed by a clearly pitched sound in the guitar range), the result has `status = 'no_playing'`, `points = []` and both scores `null`. The engine never makes up findings (FR-012). With accompaniment, this applies to the *live* playing: a take where only the loop or backing track is heard, with no live onsets attributed, is `no_playing`.
 2. **Something said about each category**: when `status = 'analysed'`, the result contains ≥ 1 `timing` point and ≥ 1 `technique` point. A category with nothing to fix gets a positive `info` point (e.g. `timing.steady`). A category that could not be assessed instead has a `limitations` entry and a `null` score.
 3. **Valid times**: every `startMs` is in `[0, durationMs]`.
 4. **Tempo reference**: timing metrics are always measured against the beat grid estimated from the player's own playing. If `targetTempoBpm` is given, it is used to resolve half/double-tempo ambiguity, `tempo.targetDeltaBpm` is set, and a `timing.off_target_tempo` point is emitted when the difference is more than 5% (FR-007, Story 1 scenario 3).
-5. **Left-handed players**: with `handedness = 'left'`, the fretting and picking hand roles are swapped. Mirrored front-camera handedness labels are corrected.
+5. **Left-handed players**: with `handedness = 'left'`, the fretting and picking hand roles are swapped. MediaPipe assumes selfie (mirrored) input, so on un-mirrored frames its labels are flipped; the engine corrects this, and uses the labels as-is when `landmarksMirrored` is true.
 6. **Text tone**: text depends only on `issueCode`, metrics and `skillLevel`, and is rendered from the template catalogue (FR-011).
 7. **Performance**: a 60-second input finishes in ≤ 10 s on the Nothing Phone (4a), release build (the budget for the analysis stage within SC-002's 30 s). This includes accompaniment processing.
 8. **Accompaniment setting**:

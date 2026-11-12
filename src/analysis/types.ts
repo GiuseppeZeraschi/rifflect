@@ -46,6 +46,11 @@ export interface AnalysisInput {
   targetTempoBpm?: number;
   /** FR-024 */
   accompaniment: AccompanimentSetting;
+  /**
+   * True if landmark frames were left mirrored (selfie view). Default false: frames are un-mirrored,
+   * so MediaPipe's handedness labels are flipped (it assumes selfie input). Set from frame.isMirrored.
+   */
+  landmarksMirrored?: boolean;
   /** True when the recording ended abnormally (adds a take_interrupted limitation). */
   interrupted?: boolean;
 }

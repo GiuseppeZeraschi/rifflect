@@ -42,8 +42,9 @@ export function pluck({ freq = 196, decayS = 2, amp = 0.5, lengthMs = 600, seed 
   const r = rng(seed);
   const buf = new Float64Array(period);
   for (let i = 0; i < period; i++) buf[i] = r() * 2 - 1;
-  // Per-sample loss so amplitude falls 60 dB in decayS seconds.
-  const loss = Math.pow(10, -3 / (decayS * SR));
+  // Each buffer slot is attenuated once per period (i.e. freq times per second), so the loss per
+  // pass that makes the amplitude fall 60 dB in decayS seconds is 10^(−3 / (decayS · freq)).
+  const loss = Math.pow(10, -3 / (decayS * (SR / period)));
   let idx = 0;
   for (let i = 0; i < n; i++) {
     const next = (idx + 1) % period;

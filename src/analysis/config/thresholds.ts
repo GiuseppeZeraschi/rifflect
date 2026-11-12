@@ -34,13 +34,24 @@ export const ONSETS = {
   thresholdOffset: 0.02,
   /** Minimum gap between onsets (ms): faster than 32nd notes at 220 BPM is treated as one. */
   minInterOnsetMs: 50,
-  /** Fewer than this fraction of onset-active frames → no playing (contract guarantee 1). */
-  noPlayingActiveFraction: 0.1,
+  /** An onset must raise short-term energy: after/before ratio over these windows (ms). */
+  energyWindowMs: 25,
+  minEnergyRise: 1.3,
+  /** A take counts as playing only with at least this many pluck-like onsets (sharp + pitched). */
+  minPluckOnsets: 4,
+  /** Pluck-like: attack energy (first 15 ms) at least this many times the energy just before … */
+  pluckAttackRatio: 4,
+  /** … and normalised autocorrelation at a guitar pitch at least this high. */
+  pluckPeriodicity: 0.8,
+  /** … and pluck-like onsets must be at least this share of all onsets (noise produces chance hits). */
+  minPluckShare: 0.25,
 } as const;
 
 export const TEMPO = {
   minBpm: 60,
   maxBpm: 220,
+  /** Beat period = shortest autocorrelation peak at least this fraction of the strongest. */
+  periodPeakFraction: 0.6,
   /** |rushing/dragging| threshold on the mean signed offset (ms). */
   rushDragMs: 25,
   /** Local tempo change over the take that counts as drift (BPM). */
