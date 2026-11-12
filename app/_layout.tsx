@@ -82,6 +82,7 @@ function AppNavigator() {
             <Stack.Screen name="take/[id]/analysing" options={{ title: 'Analysing', gestureEnabled: false }} />
             <Stack.Screen name="take/[id]/edit" options={{ title: 'Edit take' }} />
             <Stack.Screen name="recover" options={{ title: 'Recovered takes' }} />
+            <Stack.Screen name="compare" options={{ title: 'Compare takes' }} />
           </Stack.Protected>
           <Stack.Protected guard={!hasProfile}>
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />

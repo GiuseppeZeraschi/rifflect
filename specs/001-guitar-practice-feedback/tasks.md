@@ -574,7 +574,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T095 [P] [US3] Write progress query tests in `tests/unit/data/progressRepo.test.ts` with seeded takes, reports and points:
+- [X] T095 [P] [US3] Write progress query tests in `tests/unit/data/progressRepo.test.ts` with seeded takes, reports and points:
   - **Score series**: per item and overall, only saved and analysed takes, ordered by `recordedAt`, null scores kept as gaps.
   - **Filters**: `all` / `solo` (`accompanimentKind = none`) / `accompanied`.
   - **Recurring issues**, over the last N = 10 saved, analysed takes: an issue is recurring when "`occurrences ≥ 3` and `occurrences / windowSize ≥ 0.4`". `firstSeenAt` and `lastSeenAt` are correct, and `typicalSeverity` is the most common severity.
@@ -583,18 +583,18 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Implementation for User Story 3
 
-- [ ] T096 [US3] Implement the progress repository in `src/data/repositories/progressRepo.ts`: `scoreSeries({ practiceItemId?, filter })`, `recurringIssues({ practiceItemId?, window = 10 })` (with the display text from `recurringText` in T051) and `practiceStats({ practiceItemId? })`. T095 must pass
-- [ ] T097 [US3] Build the Progress screen `app/(tabs)/progress.tsx` with components in `src/features/progress/`:
+- [X] T096 [US3] Implement the progress repository in `src/data/repositories/progressRepo.ts`: `scoreSeries({ practiceItemId?, filter })`, `recurringIssues({ practiceItemId?, window = 10 })` (with the display text from `recurringText` in T051) and `practiceStats({ practiceItemId? })`. T095 must pass
+- [X] T097 [US3] Build the Progress screen `app/(tabs)/progress.tsx` with components in `src/features/progress/`:
   - **Item picker**: `progress-item-picker` (All, or a practice item).
   - **Filter**: `progress-accompaniment-filter` (All / Solo / Accompanied).
   - **Chart**: `chart-scores`, a victory-native line chart of timing and technique over time, with gaps for null scores and point markers by accompaniment kind.
   - **Recurring issues**: a list with `recurring-issue-<code>` items.
   - **Stats**: `stats-takes`, `stats-minutes`, `stats-days-per-week`.
   - **Not enough data**: a `need-more-takes` message when the series has fewer than 2 points.
-- [ ] T098 [US3] Build the compare screen `app/compare.tsx` (`/compare?a=<id>&b=<id>`), with components in `src/features/compare/`:
+- [X] T098 [US3] Build the compare screen `app/compare.tsx` (`/compare?a=<id>&b=<id>`), with components in `src/features/compare/`:
   - **Layout**: two `expo-video` players and two feedback summaries, `compare-a` and `compare-b` (stacked on narrow phones, side by side in landscape), with scores and top points for each take.
   - **Entry points**: from the library via a "Compare" multi-select mode in `src/features/library/` (select exactly 2), and from Progress ("Compare first and latest").
-- [ ] T099 [P] [US3] Write a component test in `tests/components/progressScreen.test.tsx`: `need-more-takes` appears with 1 take; the chart and a recurring issue render with seeded data; changing the filter updates the series
+- [X] T099 [P] [US3] Write a component test in `tests/components/progressScreen.test.tsx`: `need-more-takes` appears with 1 take; the chart and a recurring issue render with seeded data; changing the filter updates the series
 - [ ] T100 [US3] (optional) Write the Maestro flow `e2e/v4-progress.yaml`: seed via the dev-only seeding route `app/dev/seed.tsx` (creates labelled takes with reports from fixtures), open Progress, assert `chart-scores` and a `recurring-issue-timing.rushing` item, then open compare and assert `compare-a` and `compare-b`
 
 **Checkpoint**: all four user stories work on their own. Quickstart V1–V6 pass.

@@ -10,7 +10,20 @@ export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function TakeListItem({ row, onPress, testID, footer }: { row: LibraryRow; onPress: () => void; testID: string; footer?: string }) {
+export function TakeListItem({
+  row,
+  onPress,
+  testID,
+  footer,
+  selected,
+}: {
+  row: LibraryRow;
+  onPress: () => void;
+  testID: string;
+  footer?: string;
+  /** Compare mode: true/false shows a selection state; undefined = normal list. */
+  selected?: boolean;
+}) {
   const p = usePalette();
   const name = row.title ?? row.label ?? 'Unlabelled';
   const scores =
@@ -22,10 +35,14 @@ export function TakeListItem({ row, onPress, testID, footer }: { row: LibraryRow
   return (
     <Pressable
       testID={testID}
-      accessibilityRole="button"
+      accessibilityRole={selected === undefined ? "button" : "checkbox"}
+      accessibilityState={selected === undefined ? undefined : { checked: selected }}
       accessibilityLabel={`${name}, ${formatDate(row.recordedAt)}, ${formatClock(row.durationMs)}. ${scores}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.row, { borderColor: p.border, backgroundColor: pressed ? p.surface : p.background }]}>
+      style={({ pressed }) => [
+        styles.row,
+        { borderColor: selected ? p.primary : p.border, borderWidth: selected ? 2 : StyleSheet.hairlineWidth, backgroundColor: pressed || selected ? p.surface : p.background },
+      ]}>
       <Image source={{ uri: takeFiles.toAbsolute(row.thumbPath) }} style={[styles.thumb, { backgroundColor: p.surface }]} />
       <View style={styles.text}>
         <Text numberOfLines={1} style={[styles.name, { color: p.text }]}>
