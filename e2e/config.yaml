@@ -1,0 +1,3 @@
+# Maestro workspace config (tasks.md T010). Flows run against the installed app on the phone.
+flows:
+  - smoke.yaml

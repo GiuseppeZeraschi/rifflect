@@ -1,14 +1,21 @@
 # Contract: Local Native Modules (`modules/`)
 
-There are two local Expo modules, each with one TypeScript interface. v1 implements them in Kotlin (Android) only. Swift (iOS) implementations are deferred and must match the same interface. JS code accesses them only through the typed wrappers in `src/native/`, so tests can replace them with mocks.
+There are two local native modules, each with one TypeScript interface. v1 implements them in Kotlin (Android) only. Swift (iOS) implementations are deferred and must match the same interface. JS code accesses them only through the typed wrappers in `src/native/`, so tests can replace them with mocks.
 
-## 1. `rifflect-hand-landmarker`: VisionCamera frame-processor plugin
+**VisionCamera version**: this contract targets **VisionCamera 5** (Nitro-based). In v5 there are no v4-style registered frame-processor plugins (`VisionCameraProxy.initFrameProcessorPlugin` no longer exists). Instead, `useFrameOutput({ onFrame })` delivers each `Frame` (a Nitro `HybridObject`) to a worklet running on `react-native-worklets` via `react-native-vision-camera-worklets`, and native code that processes frames is itself a Nitro `HybridObject` that takes a `Frame` argument.
 
-Registered plugin name: `detectHands`.
+## 1. `rifflect-hand-landmarker`: Nitro module (`HandLandmarker` hybrid object)
+
+A Nitro module (`react-native-nitro-modules`, generated with `nitrogen`) exposing a `HandLandmarker` hybrid object. It depends on VisionCamera's `Frame` type.
 
 ```ts
-// Called inside a VisionCamera frame processor (worklet).
-detectHands(frame: Frame, opts: { maxHands: 2; minScore: number /* 0.5 */ }): HandsResult
+// Created once per camera session, on the JS thread; used inside the useFrameOutput worklet.
+interface HandLandmarker extends HybridObject<{ android: 'kotlin' /* ios: 'swift' later */ }> {
+  // Synchronous; called from the frame-output worklet. The caller still owns the Frame and disposes it.
+  detect(frame: Frame): HandsResult
+  release(): void
+}
+createHandLandmarker(opts: { maxHands: 2; minScore: number /* 0.5 */ }): HandLandmarker
 
 interface HandsResult {
   tMs: number;            // frame presentation time on the recording clock, in ms
@@ -18,13 +25,14 @@ interface HandsResult {
 ```
 
 **Behaviour**
-- **Model**: MediaPipe Hand Landmarker `.task`, bundled with the app (no download). Runs in **VIDEO** running mode (synchronous `detectForVideo(image, timestampMs)`) on iOS and Android. The frame processor needs the result back in the same call; LIVE_STREAM mode only returns results asynchronously via a callback.
-- **Frame rate**: the JS caller throttles it to `targetFps` (12; a single constant, as there is no device tiering in v1). The plugin itself never blocks for more than 40 ms.
+- **Model**: MediaPipe Hand Landmarker `.task`, bundled with the app (no download). Runs in **VIDEO** running mode (synchronous `detectForVideo(image, timestampMs)`) on iOS and Android. `detect` needs the result back in the same call; LIVE_STREAM mode only returns results asynchronously via a callback.
+- **Frame input**: the frame output streams `pixelFormat: 'yuv'` at a modest `targetResolution` (e.g. 640×480; landmarks are normalised, so full resolution isn't needed). On Android, `detect` reads the frame's native buffer (`HardwareBuffer` / `Image`) and wraps it as an `MPImage` without copying through JS.
+- **Frame rate**: the worklet throttles calls to `targetFps` (12; a single constant, as there is no device tiering in v1) by comparing `frame.timestamp`, and disposes every frame it skips. `detect` itself never blocks for more than 40 ms. `dropFramesWhileBusy` stays `true` so slow detection can never stall the separate video output that records the take.
 - **Coordinates**: normalised to the upright, un-mirrored image. `side` is MediaPipe's raw label; mirror correction happens in the engine (contract guarantee 5).
 
 **Companion functions**
 
-`openLandmarkWriter(takeId): WriterHandle`, `append(handle, HandsResult)`, `close(handle)`
+`openLandmarkWriter(takeId): LandmarkWriter` (hybrid object with `append(HandsResult)` and `close()`, callable from the worklet)
 - Writes `landmarks.jsonl` from native code, buffered, so a crash loses at most 1 s of frames.
 
 `extractLandmarksFromVideo(videoPath, fps): Promise<string /* landmarksPath */>`
@@ -46,5 +54,6 @@ readPcmChunk(pcmPath: string, offsetFrames: number, frames: number): Float32Arra
 
 ## Third-party modules used directly (no wrapper contract)
 
-- **react-native-vision-camera**: preview, recording (`startRecording` / `stopRecording`), frame processors.
+- **react-native-vision-camera 5** (with `react-native-nitro-modules`, `react-native-nitro-image`, `react-native-vision-camera-worklets`, `react-native-worklets`): preview output, video output with `enableAudio: true` and its `Recorder` for recording, frame output for hand tracking.
+- **`rifflect-audio-decoder`** is a standard local Expo module (`create-expo-module --local`); it doesn't touch frames, so it doesn't need Nitro.
 - **expo-sqlite**, **expo-file-system**, **expo-media-library**, **expo-video**, **expo-sharing**.

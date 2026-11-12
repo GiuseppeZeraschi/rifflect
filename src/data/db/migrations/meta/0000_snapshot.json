@@ -1,0 +1,735 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "cfb86ce6-b628-4705-80cf-020b4fabbe74",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "feedback_point": {
+      "name": "feedback_point",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "report_id": {
+          "name": "report_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "aspect": {
+          "name": "aspect",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "issue_code": {
+          "name": "issue_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "start_ms": {
+          "name": "start_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "end_ms": {
+          "name": "end_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "observation": {
+          "name": "observation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "suggestion": {
+          "name": "suggestion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "metrics": {
+          "name": "metrics",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "feedback_point_issue": {
+          "name": "feedback_point_issue",
+          "columns": [
+            "issue_code",
+            "report_id"
+          ],
+          "isUnique": false
+        },
+        "feedback_point_report": {
+          "name": "feedback_point_report",
+          "columns": [
+            "report_id",
+            "sort_order"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "feedback_point_report_id_feedback_report_id_fk": {
+          "name": "feedback_point_report_id_feedback_report_id_fk",
+          "tableFrom": "feedback_point",
+          "tableTo": "feedback_report",
+          "columnsFrom": [
+            "report_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "point_category": {
+          "name": "point_category",
+          "value": "category IN ('timing', 'technique')"
+        },
+        "point_aspect": {
+          "name": "point_aspect",
+          "value": "aspect IN ('tempo', 'rhythm', 'fretting_hand', 'picking_hand', 'clarity', 'posture')"
+        },
+        "point_severity": {
+          "name": "point_severity",
+          "value": "severity IN ('info', 'minor', 'moderate', 'major')"
+        },
+        "point_confidence": {
+          "name": "point_confidence",
+          "value": "confidence BETWEEN 0 AND 1"
+        },
+        "point_start": {
+          "name": "point_start",
+          "value": "start_ms >= 0"
+        }
+      }
+    },
+    "feedback_report": {
+      "name": "feedback_report",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "take_id": {
+          "name": "take_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "analysis_version": {
+          "name": "analysis_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "timing_score": {
+          "name": "timing_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "technique_score": {
+          "name": "technique_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "detected_tempo_bpm": {
+          "name": "detected_tempo_bpm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "target_tempo_delta_bpm": {
+          "name": "target_tempo_delta_bpm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tempo_drift_bpm": {
+          "name": "tempo_drift_bpm",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mean_abs_offset_ms": {
+          "name": "mean_abs_offset_ms",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "accompaniment_kind": {
+          "name": "accompaniment_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'none'"
+        },
+        "loop_length_ms": {
+          "name": "loop_length_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "timing_reference": {
+          "name": "timing_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'own_playing'"
+        },
+        "separation_confidence": {
+          "name": "separation_confidence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "live_onset_match_rate": {
+          "name": "live_onset_match_rate",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "analysed_coverage": {
+          "name": "analysed_coverage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "limitations": {
+          "name": "limitations",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "processing_ms": {
+          "name": "processing_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "feedback_report_take": {
+          "name": "feedback_report_take",
+          "columns": [
+            "take_id"
+          ],
+          "isUnique": true
+        },
+        "feedback_report_accompaniment": {
+          "name": "feedback_report_accompaniment",
+          "columns": [
+            "accompaniment_kind"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "feedback_report_take_id_take_id_fk": {
+          "name": "feedback_report_take_id_take_id_fk",
+          "tableFrom": "feedback_report",
+          "tableTo": "take",
+          "columnsFrom": [
+            "take_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "report_timing_score": {
+          "name": "report_timing_score",
+          "value": "timing_score IS NULL OR timing_score BETWEEN 0 AND 100"
+        },
+        "report_technique_score": {
+          "name": "report_technique_score",
+          "value": "technique_score IS NULL OR technique_score BETWEEN 0 AND 100"
+        },
+        "report_summary_len": {
+          "name": "report_summary_len",
+          "value": "length(summary) <= 140"
+        },
+        "report_accompaniment_kind": {
+          "name": "report_accompaniment_kind",
+          "value": "accompaniment_kind IN ('none', 'loop', 'backing', 'click')"
+        },
+        "report_timing_reference": {
+          "name": "report_timing_reference",
+          "value": "timing_reference IN ('own_playing', 'accompaniment')"
+        },
+        "report_separation": {
+          "name": "report_separation",
+          "value": "separation_confidence IS NULL OR separation_confidence IN ('good', 'partial', 'poor')"
+        },
+        "report_match_rate": {
+          "name": "report_match_rate",
+          "value": "live_onset_match_rate IS NULL OR live_onset_match_rate BETWEEN 0 AND 1"
+        }
+      }
+    },
+    "player_profile": {
+      "name": "player_profile",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "handedness": {
+          "name": "handedness",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "skill_level": {
+          "name": "skill_level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "preferred_camera": {
+          "name": "preferred_camera",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'front'"
+        },
+        "last_accompaniment_setting": {
+          "name": "last_accompaniment_setting",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'auto'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "player_profile_id_me": {
+          "name": "player_profile_id_me",
+          "value": "id = 'me'"
+        },
+        "player_profile_handedness": {
+          "name": "player_profile_handedness",
+          "value": "handedness IN ('right', 'left')"
+        },
+        "player_profile_skill": {
+          "name": "player_profile_skill",
+          "value": "skill_level IN ('beginner', 'intermediate', 'advanced')"
+        },
+        "player_profile_camera": {
+          "name": "player_profile_camera",
+          "value": "preferred_camera IN ('front', 'back')"
+        },
+        "player_profile_accompaniment": {
+          "name": "player_profile_accompaniment",
+          "value": "last_accompaniment_setting IN ('auto', 'on', 'off')"
+        }
+      }
+    },
+    "practice_item": {
+      "name": "practice_item",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "practice_item_name_nocase": {
+          "name": "practice_item_name_nocase",
+          "columns": [
+            "lower(\"name\")"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "practice_item_name_len": {
+          "name": "practice_item_name_len",
+          "value": "length(name) BETWEEN 1 AND 60 AND name = trim(name)"
+        }
+      }
+    },
+    "take": {
+      "name": "take",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "practice_item_id": {
+          "name": "practice_item_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "duration_ms": {
+          "name": "duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "camera_position": {
+          "name": "camera_position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_tempo_bpm": {
+          "name": "target_tempo_bpm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "accompaniment_setting": {
+          "name": "accompaniment_setting",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'auto'"
+        },
+        "handedness_at_recording": {
+          "name": "handedness_at_recording",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "skill_level_at_recording": {
+          "name": "skill_level_at_recording",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "video_path": {
+          "name": "video_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "landmarks_path": {
+          "name": "landmarks_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "file_size_bytes": {
+          "name": "file_size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "capture_status": {
+          "name": "capture_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "analysis_status": {
+          "name": "analysis_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "saved": {
+          "name": "saved",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "interrupted": {
+          "name": "interrupted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "take_saved_recorded": {
+          "name": "take_saved_recorded",
+          "columns": [
+            "saved",
+            "recorded_at"
+          ],
+          "isUnique": false
+        },
+        "take_item_recorded": {
+          "name": "take_item_recorded",
+          "columns": [
+            "practice_item_id",
+            "recorded_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "take_practice_item_id_practice_item_id_fk": {
+          "name": "take_practice_item_id_practice_item_id_fk",
+          "tableFrom": "take",
+          "tableTo": "practice_item",
+          "columnsFrom": [
+            "practice_item_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "take_title_len": {
+          "name": "take_title_len",
+          "value": "title IS NULL OR length(title) <= 80"
+        },
+        "take_duration": {
+          "name": "take_duration",
+          "value": "duration_ms >= 0 AND duration_ms <= 300000"
+        },
+        "take_target_tempo": {
+          "name": "take_target_tempo",
+          "value": "target_tempo_bpm IS NULL OR target_tempo_bpm BETWEEN 30 AND 300"
+        },
+        "take_camera": {
+          "name": "take_camera",
+          "value": "camera_position IN ('front', 'back')"
+        },
+        "take_accompaniment": {
+          "name": "take_accompaniment",
+          "value": "accompaniment_setting IN ('auto', 'on', 'off')"
+        },
+        "take_handedness": {
+          "name": "take_handedness",
+          "value": "handedness_at_recording IN ('right', 'left')"
+        },
+        "take_skill": {
+          "name": "take_skill",
+          "value": "skill_level_at_recording IN ('beginner', 'intermediate', 'advanced')"
+        },
+        "take_capture_status": {
+          "name": "take_capture_status",
+          "value": "capture_status IN ('recording', 'complete', 'partial')"
+        },
+        "take_analysis_status": {
+          "name": "take_analysis_status",
+          "value": "analysis_status IN ('pending', 'analysing', 'analysed', 'failed', 'no_playing', 'too_short')"
+        },
+        "take_saved_rule": {
+          "name": "take_saved_rule",
+          "value": "saved = 0 OR capture_status = 'complete' OR interrupted = 1"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {
+      "practice_item_name_nocase": {
+        "columns": {
+          "lower(\"name\")": {
+            "isExpression": true
+          }
+        }
+      }
+    }
+  }
+}

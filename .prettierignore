@@ -1,0 +1,11 @@
+node_modules/
+android/
+ios/
+dist/
+build/
+coverage/
+.expo/
+package-lock.json
+modules/*/nitrogen/
+src/data/db/migrations/
+specs/

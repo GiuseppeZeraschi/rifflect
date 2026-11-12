@@ -28,10 +28,10 @@ All decisions and alternatives are in [research.md](./research.md).
 
 **Primary Dependencies**:
 - **Platform**: Expo development builds and release APKs, built locally on Windows with `npx expo prebuild` + Gradle (Android Studio / Android SDK). No EAS or Expo account needed; EAS Build becomes relevant only if iOS is added.
-- **Camera and on-device ML**: react-native-vision-camera (recording and frame processors), MediaPipe Tasks Vision Hand Landmarker (Android SDK; iOS SDK later)
+- **Camera and on-device ML**: react-native-vision-camera 5 (video output for recording, frame output for hand tracking) with react-native-nitro-modules, react-native-nitro-image, react-native-vision-camera-worklets and react-native-worklets; MediaPipe Tasks Vision Hand Landmarker (Android SDK; iOS SDK later) wrapped in a local Nitro module
 - **Storage**: expo-sqlite + drizzle-orm, expo-file-system, expo-media-library, expo-sharing, expo-video-thumbnails (library thumbnails)
 - **UI**: expo-video, expo-router, victory-native (Skia charts), zustand
-- **Background work**: react-native-worklets-core (off-UI-thread analysis)
+- **Background work**: analysis runs as a yielding async pipeline on the JS thread (research R5); frame processing runs on a VisionCamera worklet thread
 
 **Storage**: SQLite on the phone (metadata, reports, findings). App-private file storage for videos, landmark streams and thumbnails. No server and no cloud.
 

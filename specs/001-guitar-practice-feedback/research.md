@@ -17,8 +17,9 @@ The user decided on React Native, so the app runs on Android and iPhone from one
 
 ## R2. Camera and audio capture
 
-- **Decision**: **react-native-vision-camera** (v4+) records video with audio to an `.mp4`/`.mov` file in the app's private storage. Its **frame processors** run hand tracking on live frames during recording and during the framing preview.
-- **Rationale**: It is the most capable RN camera library. It records audio and video together (FR-001), lets us pick the camera and format, and its frame processors run synchronously on a worklet thread. Native plugins can be attached to them, which we need for on-device hand tracking.
+- **Decision**: **react-native-vision-camera 5** (current major version at implementation, built on Nitro Modules). A **video output** (`useVideoOutput({ enableAudio: true })` and its `Recorder`) records video with audio to an `.mp4` file in the app's private storage. A separate **frame output** (`useFrameOutput({ onFrame })`, running on `react-native-worklets` via `react-native-vision-camera-worklets`) runs hand tracking on live frames during recording and during the framing preview.
+- **Rationale**: It is the most capable RN camera library. It records audio and video together (FR-001), lets us pick the camera and format, and its frame output delivers each frame synchronously to a worklet. Native code receives frames as Nitro hybrid objects, which we need for on-device hand tracking. Because recording and frame processing are separate outputs, and the frame output drops frames while busy, slow hand tracking can't affect the recording.
+- **Version note (2026-11-12)**: the original plan assumed VisionCamera v4 (registered frame-processor plugins and `react-native-worklets-core`). v5 replaced both, so the hand landmarker is a Nitro module (see [contracts/native-modules.md](./contracts/native-modules.md)).
 - **Alternatives considered**: *expo-camera*: simpler, but its frame-processing support is not mature enough to run per-frame ML.
 
 ## R3. On-device hand/pose tracking (technique analysis)
@@ -45,7 +46,7 @@ The user decided on React Native, so the app runs on Android and iPhone from one
 
 ## R5. Where the analysis code runs: TypeScript core vs C++
 
-- **Decision**: The analysis engine is **pure TypeScript** in `src/analysis/`. It has no React Native imports and is fed typed arrays. It runs off the UI thread via a worklet/background runtime (`react-native-worklets-core` or equivalent), so the UI stays responsive. The heavy loops (FFT, spectral flux, autocorrelation) sit behind one `dsp` interface so they can be swapped for a C++/JSI implementation (Nitro Modules) if benchmarks miss the target.
+- **Decision**: The analysis engine is **pure TypeScript** in `src/analysis/`. It has no React Native imports and is fed typed arrays. It runs on the JS thread as an `async` pipeline that yields to the event loop between stages and between chunks (every ~50 ms of work), so navigation and the progress UI stay responsive. Animations run on the UI thread (Reanimated) and are unaffected. Running the engine inside a `react-native-worklets` runtime was considered but rejected for v1: the engine spans many modules, and worklets need every function they call to be workletized. The heavy loops (FFT, spectral flux, autocorrelation) sit behind one `dsp` interface so they can be swapped for a C++/JSI implementation (Nitro Modules) if benchmarks miss the target.
 - **Rationale**:
   - The same code runs in Jest and in Node, so the analysis can be unit-tested with audio and landmark fixtures.
   - The accuracy evaluation harness for SC-003 can run on a desktop over a labelled corpus.

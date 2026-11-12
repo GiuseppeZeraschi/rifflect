@@ -103,3 +103,7 @@ Desktop.ini
 
 # Claude Code: personal local settings (shared project skills/settings ARE committed)
 .claude/settings.local.json
+
+# Expo template extras
+.kotlin/
+*.orig.*

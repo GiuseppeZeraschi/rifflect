@@ -1,0 +1,7 @@
+# Smoke flow: the app launches to either onboarding (fresh install) or the Record tab.
+# NEVER add `clearState: true` here: on your own phone it would delete every saved take.
+appId: com.rifflect.app
+---
+- launchApp
+- assertVisible:
+    id: app-root

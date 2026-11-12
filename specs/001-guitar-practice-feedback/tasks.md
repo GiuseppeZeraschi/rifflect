@@ -39,9 +39,9 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 **Purpose**: Project initialisation, tooling and configuration.
 
-- [ ] T001 Initialise an Expo TypeScript app at the repository root using the expo-router tabs template. Set the name to "Rifflect", the slug to `rifflect`, and the Android `package` (and the iOS `bundleIdentifier`, for later) to `com.rifflect.app`. Enable the New Architecture (`newArchEnabled: true`) in `app.json`. Keep the existing `.gitignore`, `.gitattributes`, `LICENSE`, `.specify/`, `.claude/` and `specs/`
-- [ ] T002 Install the runtime dependencies from [plan.md § Technical Context](./plan.md#technical-context) into `package.json`:
-  - Camera and background work: `react-native-vision-camera`, `react-native-worklets-core`
+- [X] T001 Initialise an Expo TypeScript app at the repository root using the expo-router tabs template. Set the name to "Rifflect", the slug to `rifflect`, and the Android `package` (and the iOS `bundleIdentifier`, for later) to `com.rifflect.app`. Enable the New Architecture (`newArchEnabled: true`) in `app.json`. Keep the existing `.gitignore`, `.gitattributes`, `LICENSE`, `.specify/`, `.claude/` and `specs/`
+- [X] T002 Install the runtime dependencies from [plan.md § Technical Context](./plan.md#technical-context) into `package.json`:
+  - Camera and frame processing: `react-native-vision-camera` (v5), `react-native-nitro-modules`, `react-native-nitro-image`, `react-native-vision-camera-worklets`, `react-native-worklets` (already in the template)
   - Storage: `expo-sqlite`, `drizzle-orm`, `expo-file-system`, `expo-media-library`, `expo-sharing`
   - Video and UI: `expo-video`, `expo-video-thumbnails`, `expo-router`, `victory-native`, `@shopify/react-native-skia`, `zustand`, `expo-dev-client`
   - Utilities: `uuid` (with v7 support)
@@ -51,14 +51,14 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - `jest`, `jest-expo`, `@testing-library/react-native`, `ts-node`
 
   Use `npx expo install` wherever a package has an Expo-pinned version.
-- [ ] T003 [P] Configure `tsconfig.json`: `"strict": true`, `"noUncheckedIndexedAccess": true`, and the path alias `"@/*": ["src/*"]` (mirror the alias in `babel.config.js` via `babel-plugin-module-resolver`)
-- [ ] T004 [P] Configure ESLint (flat config, `eslint-config-expo`) in `eslint.config.js`. Add a `no-restricted-imports` rule that blocks `react-native`, `expo*` and `@/native/*` inside `src/analysis/**`. Add `.prettierrc`. Add npm scripts `lint`, `typecheck` (`tsc --noEmit`) and `format` in `package.json`
-- [ ] T005 [P] Configure Jest in `jest.config.js` with two projects:
+- [X] T003 [P] Configure `tsconfig.json`: `"strict": true`, `"noUncheckedIndexedAccess": true`, and the path alias `"@/*": ["src/*"]` (mirror the alias in `babel.config.js` via `babel-plugin-module-resolver`)
+- [X] T004 [P] Configure ESLint (flat config, `eslint-config-expo`) in `eslint.config.js`. Add a `no-restricted-imports` rule that blocks `react-native`, `expo*` and `@/native/*` inside `src/analysis/**`. Add `.prettierrc`. Add npm scripts `lint`, `typecheck` (`tsc --noEmit`) and `format` in `package.json`
+- [X] T005 [P] Configure Jest in `jest.config.js` with two projects:
   - `node`: `testEnvironment: node`, ts-jest or babel-jest, matching `tests/analysis/**`, `tests/unit/**` and `tests/helpers/**`
   - `app`: preset `jest-expo`, matching `tests/components/**`
 
   Add npm scripts: `test` (all), `test:analysis` (`jest --selectProjects node tests/analysis`), and `eval` (`ts-node tools/eval/run.ts`)
-- [ ] T006 [P] Create the empty folder skeleton from [plan.md](./plan.md#source-code-repository-root), with an `index.ts` placeholder where a barrel is expected:
+- [X] T006 [P] Create the empty folder skeleton from [plan.md](./plan.md#source-code-repository-root), with an `index.ts` placeholder where a barrel is expected:
   - `src/analysis/{dsp,timing,technique,accompaniment,scoring,feedback-text,config}/`
   - `src/{capture,jobs,data/db,data/repositories,data/files,native,features,ui,lib}/`
   - `tests/{unit,analysis,fixtures,components,helpers}/`
@@ -68,14 +68,14 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **npm scripts** in `package.json`: `build:apk` (`expo prebuild --platform android` then `gradlew assembleRelease` in `android/`; use `gradlew.bat` on Windows) and `install:apk` (`adb install -r android/app/build/outputs/apk/release/app-release.apk`).
   - **Never commit** the keystore or passwords; the existing `.gitignore` already excludes `*.jks` and `*.keystore`.
   - **README section** (keystore creation command, where the passwords go, backup advice, and the warning that losing the key or mixing debug and release installs forces an uninstall that deletes all takes), copied from [quickstart.md](./quickstart.md#release-build-and-install-daily-use).
-- [ ] T008 [P] Add permissions and config plugins in `app.json`:
-  - **VisionCamera plugin** with `enableMicrophonePermission: true` and `enableFrameProcessors: true`
+- [X] T008 [P] Add permissions and config plugins in `app.json`:
+  - **VisionCamera**: use its Expo config plugin if v5 ships one; otherwise add the permissions below directly
   - **Android permissions**: `CAMERA`, `RECORD_AUDIO`
   - **Plugins**: `expo-media-library` (save-only), `expo-sqlite`
   - **Backup**: `android.allowBackup: false`, so Android Auto Backup can never restore the database and video files out of step ([research.md R17](./research.md#r17-distribution-and-data-safety-personal-use))
   - **iOS usage strings** (harmless now, needed later): `NSCameraUsageDescription` ("Rifflect uses the camera to see your hands while you play"), `NSMicrophoneUsageDescription` ("Rifflect listens to your playing to give timing feedback"), `NSPhotoLibraryAddUsageDescription` ("Save your takes to Photos when you choose to export them")
-- [ ] T009 [P] Download the MediaPipe Hand Landmarker model (`hand_landmarker.task`, float16, from Google's MediaPipe model page) to `assets/models/hand_landmarker.task`. Record its source URL and SHA-256 in `assets/models/README.md`. Add `task` to `resolver.assetExts` in `metro.config.js`
-- [ ] T010 [P] Create the Maestro config `e2e/config.yaml` (appId `com.rifflect.app`) and a smoke flow `e2e/smoke.yaml` that launches the app and asserts the onboarding screen is visible
+- [X] T009 [P] Download the MediaPipe Hand Landmarker model (`hand_landmarker.task`, float16, from Google's MediaPipe model page) to `assets/models/hand_landmarker.task`. Record its source URL and SHA-256 in `assets/models/README.md`. Add `task` to `resolver.assetExts` in `metro.config.js`
+- [X] T010 [P] Create the Maestro config `e2e/config.yaml` (appId `com.rifflect.app`) and a smoke flow `e2e/smoke.yaml` that launches the app and asserts the onboarding screen is visible
 
 **Checkpoint**: `npm run typecheck`, `npm run lint` and `npm test` (no tests yet) run cleanly. `npx expo prebuild --platform android` succeeds. `npm run build:apk` produces a release APK signed with your keystore, and `npm run install:apk` installs it on the phone.
 
@@ -89,7 +89,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Data layer
 
-- [ ] T011 Create the Drizzle schema in `src/data/db/schema.ts` for all tables in [data-model.md](./data-model.md). Use UUID v7 text primary keys and ISO-8601 UTC text timestamps. Encode the enums as text with TypeScript unions. Tables and their constraints:
+- [X] T011 Create the Drizzle schema in `src/data/db/schema.ts` for all tables in [data-model.md](./data-model.md). Use UUID v7 text primary keys and ISO-8601 UTC text timestamps. Encode the enums as text with TypeScript unions. Tables and their constraints:
   - **`player_profile`**:
     - `id` "always `"me"`"
     - `handedness` enum `right` | `left` "required"
@@ -125,10 +125,10 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
     - `confidence` "0–1"
     - JSON `metrics`, `sortOrder`
   - **Indexes**: all four from data-model.md § Indexes, plus `feedback_report(accompanimentKind)`
-- [ ] T012 Add `drizzle.config.ts` (dialect `sqlite`, driver `expo`). Generate the initial migration into `src/data/db/migrations/`. Create `src/data/db/client.ts`, which opens `rifflect.db` via `expo-sqlite` with `PRAGMA foreign_keys = ON` and exports `db` and a `useDbMigrations()` hook (drizzle `useMigrations`)
-- [ ] T013 [P] Create the Node test DB helper `tests/helpers/testDb.ts`. It builds an in-memory `better-sqlite3` database with drizzle (`drizzle-orm/better-sqlite3`), applies the migrations from `src/data/db/migrations/`, and returns a fresh `db` per test
-- [ ] T014 [P] Create `src/lib/ids.ts` (`newId()` returns a UUID v7) and `src/lib/time.ts` (`nowIso()`, `localDayKey(iso)`, `isoWeekKey(iso)`). Add unit tests in `tests/unit/lib/time.test.ts`
-- [ ] T015 [P] Create the take file store `src/data/files/takeFiles.ts` on top of `expo-file-system`, with the layout from [data-model.md § File layout](./data-model.md#file-layout):
+- [X] T012 Add `drizzle.config.ts` (dialect `sqlite`, driver `expo`). Generate the initial migration into `src/data/db/migrations/`. Create `src/data/db/client.ts`, which opens `rifflect.db` via `expo-sqlite` with `PRAGMA foreign_keys = ON` and exports `db` and a `useDbMigrations()` hook (drizzle `useMigrations`)
+- [X] T013 [P] Create the Node test DB helper `tests/helpers/testDb.ts`. It builds an in-memory `better-sqlite3` database with drizzle (`drizzle-orm/better-sqlite3`), applies the migrations from `src/data/db/migrations/`, and returns a fresh `db` per test
+- [X] T014 [P] Create `src/lib/ids.ts` (`newId()` returns a UUID v7) and `src/lib/time.ts` (`nowIso()`, `localDayKey(iso)`, `isoWeekKey(iso)`). Add unit tests in `tests/unit/lib/time.test.ts`
+- [X] T015 [P] Create the take file store `src/data/files/takeFiles.ts` on top of `expo-file-system`, with the layout from [data-model.md § File layout](./data-model.md#file-layout):
   - `takeDir(id)` = `<documents>/takes/<id>/`, plus `videoPath`, `landmarksPath`, `thumbPath`
   - `pcmCachePath(id)` = `<cache>/analysis/<id>.f32`
   - `ensureTakeDir`, `deleteTakeDir`, `takeDirSizeBytes`, `freeDiskBytes`
@@ -137,33 +137,33 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Native modules (see [contracts/native-modules.md](./contracts/native-modules.md))
 
-- [ ] T016 Scaffold the local Expo module `modules/rifflect-audio-decoder` (`npx create-expo-module@latest --local`). Define its TS interface in `modules/rifflect-audio-decoder/src/index.ts`, exactly as in the contract (`decodeAudioTrack`, `readPcmChunk`, error codes `E_NO_AUDIO_TRACK`, `E_DECODE_FAILED`, `E_FILE_NOT_FOUND`). Add the typed wrapper `src/native/audioDecoder.ts` and a Jest mock `src/native/__mocks__/audioDecoder.ts`
-- [ ] T017 [P] Scaffold the local Expo module `modules/rifflect-hand-landmarker`. It registers a VisionCamera frame-processor plugin named `detectHands` and exposes `openLandmarkWriter`, `append`, `close` and `extractLandmarksFromVideo`, with TS types in `modules/rifflect-hand-landmarker/src/index.ts` exactly as in the contract. Add the wrapper `src/native/handLandmarker.ts` (including the `detectHands` worklet binding via VisionCamera's `VisionCameraProxy.initFrameProcessorPlugin('detectHands')`) and a mock in `src/native/__mocks__/handLandmarker.ts`
+- [X] T016 Scaffold the local Expo module `modules/rifflect-audio-decoder` (`npx create-expo-module@latest --local`). Define its TS interface in `modules/rifflect-audio-decoder/src/index.ts`, exactly as in the contract (`decodeAudioTrack`, `readPcmChunk`, error codes `E_NO_AUDIO_TRACK`, `E_DECODE_FAILED`, `E_FILE_NOT_FOUND`). Add the typed wrapper `src/native/audioDecoder.ts` and a Jest mock `src/native/__mocks__/audioDecoder.ts`
+- [ ] T017 [P] Scaffold the local **Nitro** module `modules/rifflect-hand-landmarker` (a Nitro module set up for `nitrogen` code generation, autolinked as a local package). Define the `HandLandmarker` and `LandmarkWriter` hybrid object specs in `modules/rifflect-hand-landmarker/src/specs/*.nitro.ts` exactly as in the [VisionCamera 5 contract](./contracts/native-modules.md#1-rifflect-hand-landmarker-nitro-module-handlandmarker-hybrid-object), with `detect(frame: Frame)` using VisionCamera's `Frame` type, plus `createHandLandmarker`, `openLandmarkWriter` and `extractLandmarksFromVideo`. Add the wrapper `src/native/handLandmarker.ts` and a Jest mock in `src/native/__mocks__/handLandmarker.ts`
 - [ ] T018 (device) Implement the Android audio decoder in `modules/rifflect-audio-decoder/android/src/main/java/expo/modules/rifflectaudiodecoder/RifflectAudioDecoderModule.kt`:
   - **Decode**: `MediaExtractor` selects the audio track, then `MediaCodec` decodes to PCM.
   - **Convert**: downmix to mono and resample to 22,050 Hz Float32.
   - **Output**: write a little-endian `.f32` file to the given cache path and return `{ pcmPath, sampleRate, frames, durationMs, peak }`.
   - **Partial files**: return `E_DECODE_FAILED` for unreadable partial files (e.g. left by a crash) rather than crashing.
   - **`readPcmChunk`**: return an `ArrayBuffer`-backed `Float32Array`.
-- [ ] T019 (device) Implement the Android `detectHands` plugin in `modules/rifflect-hand-landmarker/android/src/main/java/expo/modules/rifflecthandlandmarker/HandLandmarkerPlugin.kt`:
+- [ ] T019 (device) Implement the Android `HandLandmarker` hybrid object in `modules/rifflect-hand-landmarker/android/src/main/java/com/margelo/nitro/rifflect/handlandmarker/HybridHandLandmarker.kt`:
   - **Dependency**: add `com.google.mediapipe:tasks-vision` to `modules/rifflect-hand-landmarker/android/build.gradle`.
   - **Model**: load `hand_landmarker.task` from app assets with `RunningMode.VIDEO`, `numHands = 2`, `minHandDetectionConfidence = 0.5`.
-  - **Per frame**: convert the frame to an `MPImage` (respecting orientation), call `detectForVideo(image, frame.timestamp ms)`, and return `{ tMs, hands:[{ side, score, pts:[[x,y,z]×21] }], brightness }`, where `brightness` is the mean of the Y plane / 255.
+  - **Per frame**: in the Kotlin `HybridHandLandmarker.detect(frame)`, take the frame's native buffer, wrap it as an `MPImage` (respecting `frame.orientation`), call `detectForVideo(image, frame.timestamp ms)`, and return `{ tMs, hands:[{ side, score, pts:[[x,y,z]×21] }], brightness }`, where `brightness` is the mean of the Y plane / 255.
   - **Budget**: per-call work must stay under 40 ms.
-- [ ] T020 (device) Implement the native landmark writer (`openLandmarkWriter(takeId)`, `append`, `close`) for Android in `modules/rifflect-hand-landmarker/android/src/main/java/expo/modules/rifflecthandlandmarker/LandmarkWriter.kt`.
+- [ ] T020 (device) Implement the native landmark writer (`openLandmarkWriter(takeId)`, `append`, `close`) for Android in `modules/rifflect-hand-landmarker/android/src/main/java/com/margelo/nitro/rifflect/handlandmarker/LandmarkWriter.kt`.
   - **Format**: append JSON Lines `{ "t": tMs, "hands": [{ "side", "score", "pts" }] }` to `takes/<takeId>/landmarks.jsonl`.
   - **Flushing**: buffer and flush at least every 1 s, so a crash loses at most 1 s of frames.
-- [ ] T021 (device) Implement `extractLandmarksFromVideo(videoPath, fps)` for Android in `modules/rifflect-hand-landmarker/android/src/main/java/expo/modules/rifflecthandlandmarker/LandmarkExtractor.kt`. It is the fallback when the live stream is missing:
+- [ ] T021 (device) Implement `extractLandmarksFromVideo(videoPath, fps)` for Android in `modules/rifflect-hand-landmarker/android/src/main/java/com/margelo/nitro/rifflect/handlandmarker/LandmarkExtractor.kt`. It is the fallback when the live stream is missing:
   - **Decode frames**: `MediaMetadataRetriever.getFrameAtTime` / `MediaCodec`.
   - **Detect**: run `detectForVideo` at `fps`.
   - **Output**: write `landmarks.jsonl` and return its path.
-- [ ] T022 [P] Create the parser `src/native/landmarksFile.ts`. It reads `landmarks.jsonl` (streaming line by line), converts it to the engine type `LandmarkFrame[]` (`tMs`, `hands[].side|score|pts`), and skips malformed or truncated last lines. Tests go in `tests/unit/native/landmarksFile.test.ts`
-- [ ] T023 Create the PCM reader `src/native/pcm.ts`. It loads a decoded `.f32` file into a single `Float32Array` by calling `readPcmChunk` in chunks of 1,048,576 frames, and reports progress
+- [X] T022 [P] Create the parser `src/native/landmarksFile.ts`. It reads `landmarks.jsonl` (streaming line by line), converts it to the engine type `LandmarkFrame[]` (`tMs`, `hands[].side|score|pts`), and skips malformed or truncated last lines. Tests go in `tests/unit/native/landmarksFile.test.ts`
+- [X] T023 Create the PCM reader `src/native/pcm.ts`. It loads a decoded `.f32` file into a single `Float32Array` by calling `readPcmChunk` in chunks of 1,048,576 frames, and reports progress
 - [ ] T024 [P] Write the landmark extraction script `tools/eval/extract_landmarks.py` (Python, `mediapipe` Tasks API, the same `assets/models/hand_landmarker.task`, VIDEO mode, 12 fps). It writes `landmarks.jsonl` in the [data-model.md](./data-model.md#file-layout) format and pins its dependencies in `tools/eval/requirements.txt`. Used to produce the fixture landmarks in T041 and T093, and the evaluation corpus landmarks
 
 ### Device spikes (decision gates; see [plan.md § Phase ordering](./plan.md#phase-ordering--key-risks-input-for-speckit-tasks))
 
-- [ ] T025 (human, device) **Spike A: live landmarks.** Build a dev-only screen `app/dev/spike-landmarks.tsx` that previews and records 1080p30 video with a frame processor calling `detectHands`, throttled to 12 fps. Run it for 60 s, and once for 5 minutes, on the Nothing Phone (4a) using a **release** build (debug builds give misleading timings). Log dropped recording frames, mean and p95 `detectHands` time, and thermal warnings (`PowerManager.getCurrentThermalStatus`).
+- [ ] T025 (human, device) **Spike A: live landmarks.** Build a dev-only screen `app/dev/spike-landmarks.tsx` that previews and records 1080p30 video (video output with audio) while a frame output (YUV, ~640×480) calls `HandLandmarker.detect` from its worklet, throttled to 12 fps. Run it for 60 s, and once for 5 minutes, on the Nothing Phone (4a) using a **release** build (debug builds give misleading timings). Log dropped recording frames, mean and p95 `detect` time, and thermal warnings (`PowerManager.getCurrentThermalStatus`).
   - **Results**: record them in `specs/001-guitar-practice-feedback/spikes.md`.
   - **Gate**: pass = no dropped recording frames and p95 under 40 ms. Fail = switch US1 to post-take extraction (T021) as the primary path, and update [research.md R3](./research.md).
   - **Crash check**: force-kill the app 20 s into a recording (`adb shell am force-stop com.rifflect.app`). Record whether the leftover file can be decoded (T018) and played. If it can, recovery stays as specified. If not, recovery (T077) deletes unreadable partial takes with a message.
@@ -173,11 +173,11 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Analysis core (shared by all stories; see [contracts/analysis-engine.md](./contracts/analysis-engine.md))
 
-- [ ] T027 [P] Create the engine's public types in `src/analysis/types.ts`, exactly as in the contract:
+- [X] T027 [P] Create the engine's public types in `src/analysis/types.ts`, exactly as in the contract:
   - `AnalysisInput` (including `targetTempoBpm?` "30..300" and `accompaniment: 'auto' | 'on' | 'off'`), `LandmarkFrame`, `AnalysisResult` (including the `accompaniment` block), `FeedbackPointOut`, `AnalysisOptions` (`onProgress`, `signal`)
   - The `IssueCode` union with every code in the contract's Issue codes table
   - The `LimitationCode` union with every code in the contract's Limitation codes list
-- [ ] T028 [P] Create the versioned thresholds in `src/analysis/config/thresholds.ts`. Include `ENGINE_VERSION = '1.0.0+t1'` and `CONFIDENCE_FLOOR = 0.6`, plus every numeric threshold named in [research.md](./research.md) R6, R7, R9 and R16 and in the contract:
+- [X] T028 [P] Create the versioned thresholds in `src/analysis/config/thresholds.ts`. Include `ENGINE_VERSION = '1.0.0+t1'` and `CONFIDENCE_FLOOR = 0.6`, plus every numeric threshold named in [research.md](./research.md) R6, R7, R9 and R16 and in the contract:
   - **Timing**: rushing/dragging ±25 ms; tempo drift 3 BPM; off-target tempo 5%; tempo search range 60–220 BPM
   - **Technique**: wrist strain 5 s; live-clarity confidence 0.7
   - **Accompaniment**: ahead/behind ±20 ms; lost place ≥ ¼ beat; onset↔stroke match ±50 ms; click match ±15 ms
@@ -185,7 +185,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **No playing**: below 10% onset-active frames
 
   Every value lives here; no magic numbers elsewhere.
-- [ ] T029 [P] Create synthetic test signal helpers in `tests/helpers/synth.ts`, all at 22,050 Hz mono `Float32Array`:
+- [X] T029 [P] Create synthetic test signal helpers in `tests/helpers/synth.ts`, all at 22,050 Hz mono `Float32Array`:
   - A plucked-string generator (Karplus-Strong)
   - Onset trains at given times and BPM, with jitter or a constant offset
   - Tempo drift
@@ -193,18 +193,18 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - A buzz burst (broadband, high frequency, right after an onset)
   - A muted note (fast decay)
   - A speech-like noise signal with no pitched onsets
-- [ ] T030 [P] Create synthetic landmark helpers in `tests/helpers/synthLandmarks.ts`:
+- [X] T030 [P] Create synthetic landmark helpers in `tests/helpers/synthLandmarks.ts`:
   - **Hands**: fretting and picking hands with 21 points, with controllable thumb position, PIP-joint curvature, fingertip lift and wrist angle
   - **Strumming**: picking-hand strokes at given times
   - **Edge cases**: missing hands for given ranges, and front-camera mirroring
 
   Output is `LandmarkFrame[]`.
-- [ ] T031 Write DSP tests in `tests/unit/analysis/dsp.test.ts`:
+- [X] T031 Write DSP tests in `tests/unit/analysis/dsp.test.ts`:
   - FFT matches a naive DFT within 1e-4 for sizes 256, 1024 and 2048
   - STFT frame count for a given length, window 1024 and hop 256
   - Spectral flux peaks within ±1 hop of synthetic onsets
   - Autocorrelation peaks at the known period
-- [ ] T032 Implement the DSP behind a `Dsp` interface in `src/analysis/dsp/` (`index.ts` exports the interface and the default TS implementation):
+- [X] T032 Implement the DSP behind a `Dsp` interface in `src/analysis/dsp/` (`index.ts` exports the interface and the default TS implementation):
   - `fft.ts`: in-place radix-2 real FFT
   - `stft.ts`: Hann window, log-magnitude, band limiting
   - `flux.ts`: spectral flux and adaptive peak picking
@@ -215,14 +215,14 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Job queue & app shell
 
-- [ ] T033 Write job queue tests in `tests/unit/jobs/analysisQueue.test.ts` using `tests/helpers/testDb.ts` and an injected fake runner:
+- [X] T033 Write job queue tests in `tests/unit/jobs/analysisQueue.test.ts` using `tests/helpers/testDb.ts` and an injected fake runner:
   - Jobs run one at a time, in FIFO order
   - Status moves `pending → analysing → analysed | failed | no_playing`
   - `failed` can be retried
   - `loadPending()` enqueues every take with `analysisStatus = 'pending'` in `recordedAt` order; it never changes statuses (start-up status repair belongs to `src/jobs/recovery.ts`, T077)
   - Progress events are emitted per take
-- [ ] T034 Implement the analysis job queue in `src/jobs/analysisQueue.ts`: a singleton with `enqueue(takeId)`, `retry(takeId)`, `loadPending()` and progress subscription per `takeId` (zustand store `src/jobs/analysisProgressStore.ts`). The runner function is injected so it can be replaced in tests. Analysis keeps running while the user navigates the app. T033 must pass
-- [ ] T035 Create the app shell:
+- [X] T034 Implement the analysis job queue in `src/jobs/analysisQueue.ts`: a singleton with `enqueue(takeId)`, `retry(takeId)`, `loadPending()` and progress subscription per `takeId` (zustand store `src/jobs/analysisProgressStore.ts`). The runner function is injected so it can be replaced in tests. Analysis keeps running while the user navigates the app. T033 must pass
+- [X] T035 Create the app shell:
   - **Root layout** `app/_layout.tsx`: runs `useDbMigrations()`, shows a splash or error state until migrations finish, calls `analysisQueue.loadPending()` (T077 later inserts `runRecovery()` before it), and redirects to `/onboarding` when no `player_profile` row exists (redirect logic in `src/features/onboarding/useProfileGate.ts`).
   - **Tabs**: `app/(tabs)/_layout.tsx` with the tabs Record, Library, Progress and Settings, each a placeholder screen file.
   - **Theme**: tokens in `src/ui/theme.ts`, with light and dark modes and accessible contrast.
@@ -334,7 +334,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 
 ### Implementation for User Story 1: capture, persistence & UI
 
-- [ ] T053 [P] [US1] Implement the profile repository in `src/data/repositories/profileRepo.ts`: `getProfile()` and `upsertProfile({ handedness, skillLevel, preferredCamera, lastAccompanimentSetting })` with `id = 'me'`, validated against the schema enums
+- [X] T053 [P] [US1] Implement the profile repository in `src/data/repositories/profileRepo.ts`: `getProfile()` and `upsertProfile({ handedness, skillLevel, preferredCamera, lastAccompanimentSetting })` with `id = 'me'`, validated against the schema enums
 - [ ] T054 [US1] Implement the takes and reports repositories in `src/data/repositories/takesRepo.ts` and `src/data/repositories/reportsRepo.ts`:
   - **Takes**: `createTake(...)` (`captureStatus = 'recording'`, `analysisStatus = 'pending'`, `saved = false`, copies of profile handedness and skill), `completeCapture(id, durationMs, fileSizeBytes, landmarksPath | null)` (sets `too_short` when "`durationMs < 5,000`"), `markInterrupted(id)`, `setAnalysisStatus(id, status)` and `getTake(id)`
   - **Reports**: `saveReport(takeId, result: AnalysisResult, processingMs)`, which maps `AnalysisResult` to rows and replaces any existing report, and `getReportWithPoints(takeId)`
@@ -350,7 +350,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
     - `ok` when both hands are detected in ≥ 80% of frames, the fretting hand's landmarks are all inside [0.02, 0.98], and brightness is ≥ the threshold.
     - `hands_missing`, `fretting_out_of_frame` or `low_light` otherwise.
   - **Hint**: a repositioning hint string for each status.
-  - **Wiring**: wire it to a frame processor via `useFramingStatus()` in `src/capture/useFramingStatus.ts` (worklet → JS with `runOnJS`).
+  - **Wiring**: wire it to the frame output via `useFramingStatus()` in `src/capture/useFramingStatus.ts` (worklet → JS thread with `scheduleOnRN` / `runOnJS` from `react-native-worklets`, whichever the installed version provides).
 
   Tests go in `tests/unit/capture/framingCheck.test.ts`.
 - [ ] T058 [US1] Implement the recording controller in `src/capture/recordingController.ts`:
@@ -358,8 +358,8 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
     - Check free space (≥ 600 MB, or the estimated size of a 5-minute take, else block with the storage warning).
     - Create the take row (T054) and its folder (T015).
     - Open the landmark writer.
-    - Start VisionCamera `startRecording` to the take folder.
-    - Run the frame processor with `detectHands` at a fixed 12 fps (`LANDMARK_FPS` in `src/capture/config.ts`; no device tiering in v1) and append each result.
+    - Start recording on the VisionCamera 5 video output (`enableAudio: true`) through its `Recorder`, writing to the take folder.
+    - Run `HandLandmarker.detect` in the frame-output worklet at a fixed 12 fps (`LANDMARK_FPS` in `src/capture/config.ts`; no device tiering in v1) and append each result.
     - Auto-stop at 300,000 ms.
   - **`stop()`**: finalise the video, close the writer, call `completeCapture`, and enqueue analysis unless the take is `too_short`.
   - **Interruption**: `AppState` changes to background or recording errors stop the recording and call `markInterrupted`.
@@ -372,7 +372,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   1. Load the take and profile snapshot.
   2. Call `decodeAudioTrack(video, { sampleRate: 22050, mono: true })` and read the PCM (T023).
   3. Parse landmarks (T022). If `landmarksPath` is null, call `extractLandmarksFromVideo(video, 12)` first.
-  4. Run `analyseTake` in a `react-native-worklets-core` background runtime, forwarding progress and cancellation.
+  4. Run `analyseTake` on the JS thread as a yielding async pipeline ([research R5](./research.md#r5-where-the-analysis-code-runs-typescript-core-vs-c)), forwarding progress and cancellation.
   5. Call `saveReport` with `processingMs`.
   6. Set the status to `analysed` or `no_playing`.
   7. Delete the PCM cache.
@@ -646,7 +646,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 **Purpose**: everything needed to add iPhone support later. Do not start these until iOS is back in scope. Shared TypeScript code must not assume Android in the meantime.
 
 - [ ] T113 (device) Implement the iOS audio decoder in `modules/rifflect-audio-decoder/ios/RifflectAudioDecoderModule.swift` using `AVAssetReader` with `AVAssetReaderTrackOutput` (`kAudioFormatLinearPCM`, 32-bit float, 1 channel, 22,050 Hz). Same outputs, errors (including `E_DECODE_FAILED` for unreadable partial files) and `readPcmChunk` behaviour as T018
-- [ ] T114 (device) Implement the iOS `detectHands` plugin in `modules/rifflect-hand-landmarker/ios/HandLandmarkerPlugin.swift`:
+- [ ] T114 (device) Implement the iOS `HandLandmarker` hybrid object in `modules/rifflect-hand-landmarker/ios/HybridHandLandmarker.swift`:
   - **Dependency**: add the `MediaPipeTasksVision` pod dependency in `modules/rifflect-hand-landmarker/ios/RifflectHandLandmarker.podspec`.
   - **Behaviour**: same model options and output shape as T019, using `MPImage(sampleBuffer:orientation:)` and `detect(videoFrame:timestampInMilliseconds:)`.
 - [ ] T115 (device) Implement the iOS landmark writer and `extractLandmarksFromVideo` in `modules/rifflect-hand-landmarker/ios/LandmarkWriter.swift` and `modules/rifflect-hand-landmarker/ios/LandmarkExtractor.swift` (`AVAssetImageGenerator` / `AVAssetReader`), matching T020 and T021

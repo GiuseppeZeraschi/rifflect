@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Rifflect",
+    "slug": "rifflect",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "rifflect",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rifflect.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Rifflect uses the camera to see your hands while you play",
+        "NSMicrophoneUsageDescription": "Rifflect listens to your playing to give timing feedback",
+        "NSPhotoLibraryAddUsageDescription": "Save your takes to Photos when you choose to export them"
+      }
+    },
+    "android": {
+      "package": "com.rifflect.app",
+      "allowBackup": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      "expo-sqlite",
+      "expo-sharing",
+      "expo-video",
+      "./plugins/withReleaseSigning.js"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
