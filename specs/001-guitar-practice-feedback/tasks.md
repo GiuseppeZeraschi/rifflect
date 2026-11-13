@@ -343,7 +343,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 - [X] T055 [US1] Build the onboarding route `app/onboarding.tsx` with steps in `src/features/onboarding/`:
   - **Steps**: Welcome → permissions explainer (requests camera and microphone via VisionCamera) → handedness (`onboarding-handedness-left` / `onboarding-handedness-right`) → skill level (`onboarding-skill-beginner|intermediate|advanced`) → save the profile → `/(tabs)/record`
   - **Permission denied**: show an explanation and an "Open Settings" button (`permission-open-settings`) via `Linking.openSettings()`; never attempt to record
-- [ ] T056 [P] [US1] Implement the camera session helper in `src/capture/cameraSession.ts`. It picks the front or back device from the profile, a 1080p30 format with audio, and the frame-processor fps cap. It exposes a hook `useCameraSession()` for the Record screen
+- [X] T056 [P] [US1] Implement the camera session helper in `src/capture/cameraSession.ts`. It picks the front or back device from the profile, a 1080p30 format with audio, and the frame-processor fps cap. It exposes a hook `useCameraSession()` for the Record screen
 - [X] T057 [US1] Implement the framing check in `src/capture/framingCheck.ts`:
   - **Inputs**: a pure function over the last 30 `HandsResult` frames.
   - **Statuses**:
@@ -353,7 +353,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **Wiring**: moved to T059, where the camera and frame output are set up. This task delivers the pure check plus a `FramingWindow` ring buffer.
 
   Tests go in `tests/unit/capture/framingCheck.test.ts`.
-- [ ] T058 [US1] Implement the recording controller in `src/capture/recordingController.ts`:
+- [X] T058 [US1] Implement the recording controller in `src/capture/recordingController.ts`:
   - **`start(opts)`**:
     - Check free space (≥ 600 MB, or the estimated size of a 5-minute take, else block with the storage warning).
     - Create the take row (T054) and its folder (T015).
@@ -363,7 +363,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
     - Auto-stop at 300,000 ms.
   - **`stop()`**: finalise the video, close the writer, call `completeCapture`, and enqueue analysis unless the take is `too_short`.
   - **Interruption**: `AppState` changes to background or recording errors stop the recording and call `markInterrupted`.
-- [ ] T059 [US1] Build the Record screen in `app/(tabs)/record.tsx` with components in `src/features/record/`:
+- [ ] T059 [US1] (built except the framing wiring, which waits for the hand landmarker T017–T020) Build the Record screen in `app/(tabs)/record.tsx` with components in `src/features/record/`:
   - **Framing wiring** (from T057): `useFramingStatus()` in `src/capture/useFramingStatus.ts` feeds frame-output hand results into a `FramingWindow` (worklet → JS thread with `scheduleOnRN` / `runOnJS` from `react-native-worklets`, whichever the installed version provides), throttled to a few UI updates per second.
   - **Camera and framing**: camera preview, plus a framing checklist (`framing-status` showing the status and hint).
   - **Tempo**: optional target tempo (`tempo-input`, an integer that rejects values outside "30–300", empty = none).
@@ -547,7 +547,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - **Takes**: add `setAccompanimentSetting(id, 'auto' | 'on' | 'off')` to `takesRepo.ts`.
   - **Runner**: pass `take.accompanimentSetting` into `AnalysisInput.accompaniment` in `src/jobs/runAnalysis.ts`.
   - **Tests**: extend `tests/unit/data/takesReportsRepo.test.ts`.
-- [ ] T091 [US4] (control built: `src/features/record/AccompanimentSetting.tsx`; wiring into the Record screen is part of T059) Add the accompaniment setting to the Record screen: a segmented control `accompaniment-setting` (Auto / On / Off) in `src/features/record/AccompanimentSetting.tsx`. Pre-select it from `profile.lastAccompanimentSetting` (default `auto`), and write the chosen value back via `profileRepo.upsertProfile` when recording starts. Pass it to `recordingController.start` (FR-024). Show a tip when On: "Point the camera at your hands; keep the loop a bit quieter than your live playing"
+- [X] T091 [US4] Add the accompaniment setting to the Record screen: a segmented control `accompaniment-setting` (Auto / On / Off) in `src/features/record/AccompanimentSetting.tsx`. Pre-select it from `profile.lastAccompanimentSetting` (default `auto`), and write the chosen value back via `profileRepo.upsertProfile` when recording starts. Pass it to `recordingController.start` (FR-024). Show a tip when On: "Point the camera at your hands; keep the loop a bit quieter than your live playing"
 - [X] T092 [US4] Add the accompaniment banner and re-analysis to the feedback screen:
   - **Banner**: `src/features/feedback/AccompanimentBanner.tsx` (`accompaniment-banner`) shows "Loop detected · 8.0 s loop · Separation: good", or Backing track / Click.
   - **Re-analysis**: `reanalyse-as-solo` and `reanalyse-with-accompaniment` call `setAccompanimentSetting`, then `analysisQueue.enqueue`, then navigate to `/take/[id]/analysing`. The new report replaces the old one (FR-029).

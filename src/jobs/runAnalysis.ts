@@ -4,7 +4,12 @@
  * Dependencies are injected so the whole flow runs in Node tests with fakes for the native parts.
  * Errors propagate to the queue, which marks the take `failed` (retry allowed).
  */
-import { analyseTake, type AnalysisInput, type AnalysisResult, type LandmarkFrame } from '@/analysis';
+import {
+  analyseTake,
+  type AnalysisInput,
+  type AnalysisResult,
+  type LandmarkFrame,
+} from '@/analysis';
 import { AUDIO, LANDMARKS } from '@/analysis/config/thresholds';
 import type { Db } from '@/data/db/types';
 import type { TakeFiles } from '@/data/files/takeFiles';
@@ -17,13 +22,22 @@ import type { Runner } from './analysisQueue';
 export interface RunnerDeps {
   db: Db;
   files: TakeFiles;
-  decodeAudioTrack(videoUri: string, pcmUri: string, opts: { sampleRate: 22050; mono: true }): Promise<DecodeResult>;
+  decodeAudioTrack(
+    videoUri: string,
+    pcmUri: string,
+    opts: { sampleRate: 22050; mono: true },
+  ): Promise<DecodeResult>;
   readPcmChunk(pcmUri: string, offsetFrames: number, frames: number): Float32Array;
   readLandmarks(uri: string): Promise<LandmarkFrame[]>;
   /** Post-take landmark extraction fallback (research R3); absent until the native module exists. */
   extractLandmarksFromVideo?(videoUri: string, fps: number): Promise<string>;
-  analyse?: (input: AnalysisInput, opts: { onProgress: (p: number) => void; signal: AbortSignal }) => Promise<AnalysisResult>;
+  analyse?: (
+    input: AnalysisInput,
+    opts: { onProgress: (p: number) => void; signal: AbortSignal },
+  ) => Promise<AnalysisResult>;
   now?: () => number;
+  /** Development only: keep the decoded audio in the cache for inspection. */
+  keepPcm?: boolean;
 }
 
 /** Decoding and loading take the first 25% of the progress bar; the engine the rest. */
@@ -41,7 +55,10 @@ export function createRunner(deps: RunnerDeps): Runner {
     const videoUri = deps.files.toAbsolute(take.videoPath);
     try {
       deps.files.ensurePcmCacheDir();
-      const decoded = await deps.decodeAudioTrack(videoUri, pcmUri, { sampleRate: AUDIO.sampleRate, mono: true });
+      const decoded = await deps.decodeAudioTrack(videoUri, pcmUri, {
+        sampleRate: AUDIO.sampleRate,
+        mono: true,
+      });
       onProgress(DECODE_SHARE * 0.6);
       const samples = await loadPcm(decoded.pcmPath, {
         totalFrames: decoded.frames,
@@ -68,7 +85,10 @@ export function createRunner(deps: RunnerDeps): Runner {
           audio: { sampleRate: AUDIO.sampleRate, samples },
           landmarks,
           durationMs: take.durationMs,
-          player: { handedness: take.handednessAtRecording, skillLevel: take.skillLevelAtRecording },
+          player: {
+            handedness: take.handednessAtRecording,
+            skillLevel: take.skillLevelAtRecording,
+          },
           cameraPosition: take.cameraPosition,
           ...(take.targetTempoBpm != null ? { targetTempoBpm: take.targetTempoBpm } : {}),
           accompaniment: take.accompanimentSetting,
@@ -81,11 +101,12 @@ export function createRunner(deps: RunnerDeps): Runner {
       saveReport(deps.db, takeId, result, now() - started);
       return result.status;
     } finally {
-      try {
-        deps.files.deletePcmCache(takeId);
-      } catch {
-        // cache cleanup must never hide the real outcome
-      }
+      if (!deps.keepPcm)
+        try {
+          deps.files.deletePcmCache(takeId);
+        } catch {
+          // cache cleanup must never hide the real outcome
+        }
     }
   };
 }

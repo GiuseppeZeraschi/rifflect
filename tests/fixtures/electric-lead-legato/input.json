@@ -1,0 +1,7 @@
+{
+  "player": { "handedness": "right", "skillLevel": "intermediate" },
+  "cameraPosition": "front",
+  "accompaniment": "auto",
+  "landmarksMirrored": false,
+  "interrupted": false
+}

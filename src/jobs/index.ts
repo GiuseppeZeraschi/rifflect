@@ -21,6 +21,7 @@ const runner = createRunner({
   decodeAudioTrack,
   readPcmChunk,
   readLandmarks: async (uri) => (await readLandmarksFile(uri)).frames,
+  keepPcm: __DEV__,
   // extractLandmarksFromVideo: added with the native hand-landmarker module (tasks.md T021).
 });
 

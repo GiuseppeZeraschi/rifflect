@@ -7,7 +7,7 @@
  * contracts/analysis-engine.md.
  */
 
-export const ENGINE_VERSION = '1.0.0+t1';
+export const ENGINE_VERSION = '1.0.0+t2';
 
 /** Findings below this confidence are never emitted (contract guarantee 6). */
 export const CONFIDENCE_FLOOR = 0.6;
@@ -39,8 +39,13 @@ export const ONSETS = {
   minEnergyRise: 1.3,
   /** A take counts as playing only with at least this many pluck-like onsets (sharp + pitched). */
   minPluckOnsets: 4,
-  /** Pluck-like: attack energy (first 15 ms) at least this many times the energy just before … */
-  pluckAttackRatio: 4,
+  /**
+   * Pluck-like: attack energy (first 15 ms) at least this many times the energy just before …
+   * Low on purpose: on a real electric guitar a new note often starts while the previous one
+   * still rings, so its energy rises only 1.2–4× (first device take). Periodicity does the
+   * real work of telling notes from noise and speech.
+   */
+  pluckAttackRatio: 1.2,
   /** … and normalised autocorrelation at a guitar pitch at least this high. */
   pluckPeriodicity: 0.8,
   /** … and pluck-like onsets must be at least this share of all onsets (noise produces chance hits). */
