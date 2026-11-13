@@ -92,7 +92,8 @@ export function createRunner(deps: RunnerDeps): Runner {
           cameraPosition: take.cameraPosition,
           ...(take.targetTempoBpm != null ? { targetTempoBpm: take.targetTempoBpm } : {}),
           accompaniment: take.accompanimentSetting,
-          landmarksMirrored: false,
+          // Front-camera takes are recorded mirrored (selfie view), so their landmarks are too.
+          landmarksMirrored: take.cameraPosition === 'front',
           interrupted: take.interrupted,
         },
         { onProgress: (p) => onProgress(DECODE_SHARE + (1 - DECODE_SHARE) * p), signal },

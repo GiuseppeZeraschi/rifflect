@@ -2,8 +2,10 @@
  * Camera session for the Record screen (tasks.md T056): the camera from the profile (front by
  * default), a 1080p video output with audio, and 30 fps.
  *
- * The video is recorded un-mirrored (`mirrorMode: 'off'`), so landmarks from the same frames
- * are in the upright, un-mirrored image the engine expects (landmarksMirrored = false).
+ * Mirroring stays on VisionCamera's default (`auto`: front camera mirrored, like a selfie).
+ * `mirrorMode: 'off'` turns the front-camera preview upside down in landscape on Android
+ * (VisionCamera 5.2.4), so front-camera takes are recorded mirrored and analysed with
+ * landmarksMirrored = true (src/jobs/runAnalysis.ts).
  */
 import { useEffect, useMemo } from 'react';
 import { CommonResolutions, useCameraDevice, useVideoOutput, type CameraVideoOutput, type Constraint } from 'react-native-vision-camera';

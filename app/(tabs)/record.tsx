@@ -6,9 +6,19 @@
  * then takes are analysed from sound only.
  */
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { router, useFocusEffect, useIsFocused } from 'expo-router';
+import { router, useFocusEffect, useIsFocused, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Alert, AppState, Linking, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  AppState,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera, useCameraPermission, useMicrophonePermission } from 'react-native-vision-camera';
 
 import { recordingController } from '@/capture';
@@ -46,19 +56,34 @@ export default function RecordScreen() {
   const permitted = camera.hasPermission && microphone.hasPermission;
 
   if (!permitted) {
-    const canAsk = (!camera.hasPermission && camera.canRequestPermission) || (!microphone.hasPermission && microphone.canRequestPermission);
+    const canAsk =
+      (!camera.hasPermission && camera.canRequestPermission) ||
+      (!microphone.hasPermission && microphone.canRequestPermission);
     const ask = async () => {
       if (!camera.hasPermission && camera.canRequestPermission) await camera.requestPermission();
-      if (!microphone.hasPermission && microphone.canRequestPermission) await microphone.requestPermission();
+      if (!microphone.hasPermission && microphone.canRequestPermission)
+        await microphone.requestPermission();
     };
     return (
       <View testID="record-screen" style={[styles.center, { backgroundColor: p.background }]}>
-        <Text style={[styles.title, { color: p.text }]}>Rifflect needs the camera and microphone</Text>
-        <Body muted>It watches your hands and listens to your playing. Everything stays on this phone.</Body>
+        <Text style={[styles.title, { color: p.text }]}>
+          Rifflect needs the camera and microphone
+        </Text>
+        <Body muted>
+          It watches your hands and listens to your playing. Everything stays on this phone.
+        </Body>
         {canAsk ? (
-          <Button testID="permission-request" label="Allow camera and microphone" onPress={() => void ask()} />
+          <Button
+            testID="permission-request"
+            label="Allow camera and microphone"
+            onPress={() => void ask()}
+          />
         ) : (
-          <Button testID="permission-open-settings" label="Open settings" onPress={() => void Linking.openSettings()} />
+          <Button
+            testID="permission-open-settings"
+            label="Open settings"
+            onPress={() => void Linking.openSettings()}
+          />
         )}
       </View>
     );
@@ -73,8 +98,19 @@ function Recorder() {
   const rec = useRecording();
   const focused = useIsFocused();
   const appActive = useAppActive();
+  const { width, height } = useWindowDimensions();
+  const landscape = width > height;
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
-  const [accompaniment, setAccompaniment] = useState<Setting>(profile?.lastAccompanimentSetting ?? 'auto');
+  // Landscape: give the preview the height the header would take.
+  useEffect(() => {
+    navigation.setOptions({ headerShown: !landscape });
+  }, [navigation, landscape]);
+
+  const [accompaniment, setAccompaniment] = useState<Setting>(
+    profile?.lastAccompanimentSetting ?? 'auto',
+  );
   const [tempoText, setTempoText] = useState('');
   const [storage, setStorage] = useState<StorageStatus | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -129,7 +165,11 @@ function Recorder() {
   const start = async () => {
     if (tempo === undefined) return;
     try {
-      await recordingController.start({ cameraPosition: position, accompanimentSetting: accompaniment, targetTempoBpm: tempo });
+      await recordingController.start({
+        cameraPosition: position,
+        accompanimentSetting: accompaniment,
+        targetTempoBpm: tempo,
+      });
     } catch (e) {
       if (e instanceof StorageFullError) setStorage(storageStatus(db, takeFiles));
       else Alert.alert('Recording didn’t start', e instanceof Error ? e.message : String(e));
@@ -137,7 +177,10 @@ function Recorder() {
   };
 
   return (
-    <View testID="record-screen" style={[styles.root, { backgroundColor: p.background }]}>
+    <View
+      testID="record-screen"
+      style={[styles.root, landscape && styles.row, { backgroundColor: p.background }]}
+    >
       <View style={styles.preview}>
         {device ? (
           <Camera
@@ -146,7 +189,7 @@ function Recorder() {
             outputs={[videoOutput]}
             constraints={constraints}
             isActive={(focused && appActive) || recording}
-            mirrorMode="off"
+            orientationSource="interface"
             resizeMode="contain"
             onError={(e) => setCameraError(e.message)}
           />
@@ -162,10 +205,28 @@ function Recorder() {
         ) : null}
       </View>
 
-      <View style={[styles.panel, { backgroundColor: p.background }]}>
+      <ScrollView
+        style={[
+          landscape ? styles.sidePanel : styles.bottomPanel,
+          { backgroundColor: p.background },
+        ]}
+        contentContainerStyle={[
+          styles.panel,
+          landscape && styles.panelFill,
+          landscape && {
+            paddingTop: insets.top,
+            paddingBottom: spacing.sm,
+            paddingRight: insets.right + spacing.lg,
+            gap: spacing.sm,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
         {finished?.interrupted && !recording ? (
           <View testID="interrupted-notice" style={[styles.notice, { backgroundColor: p.surface }]}>
-            <Body>Recording stopped when Rifflect left the screen. The recorded part was kept.</Body>
+            <Body>
+              Recording stopped when Rifflect left the screen. The recorded part was kept.
+            </Body>
             <Button
               variant="secondary"
               label={finished.analysisStatus === 'too_short' ? 'Open take' : 'See feedback'}
@@ -191,13 +252,18 @@ function Recorder() {
           <>
             <AccompanimentSetting value={accompaniment} onChange={setAccompaniment} />
             <TempoInput value={tempoText} onChange={setTempoText} />
-            <Text style={{ color: p.textMuted, fontSize: fontSize.caption }}>
-              Frame both hands and the guitar neck. Hand tracking arrives in a later build; for now, feedback is on timing.
-            </Text>
+            {landscape ? null : (
+              <Text style={{ color: p.textMuted, fontSize: fontSize.caption }}>
+                Frame both hands and the guitar neck. Hand tracking arrives in a later build; for
+                now, feedback is on timing.
+              </Text>
+            )}
           </>
         ) : (
           <Text style={{ color: p.textMuted, fontSize: fontSize.body, textAlign: 'center' }}>
-            {accompaniment === 'off' ? 'Recording' : 'Recording – play over your loop or track as usual'}
+            {accompaniment === 'off'
+              ? 'Recording'
+              : 'Recording – play over your loop or track as usual'}
           </Text>
         )}
 
@@ -208,18 +274,35 @@ function Recorder() {
           onStart={() => void start()}
           onStop={() => void recordingController.stop()}
         />
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  row: { flexDirection: 'row' },
   preview: { flex: 1, backgroundColor: '#000' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    gap: spacing.lg,
+  },
   title: { fontSize: fontSize.title, fontWeight: '600', textAlign: 'center' },
-  overlay: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: spacing.md, padding: spacing.md, borderRadius: radius.md },
+  overlay: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+  },
+  bottomPanel: { flexGrow: 0, maxHeight: '55%' },
+  sidePanel: { flexGrow: 0, width: 360 },
   panel: { padding: spacing.lg, gap: spacing.md },
+  panelFill: { flexGrow: 1, justifyContent: 'center' },
   notice: { borderRadius: radius.md, padding: spacing.md, gap: spacing.sm },
   warning: { fontSize: fontSize.caption, fontWeight: '600' },
 });

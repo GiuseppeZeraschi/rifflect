@@ -115,7 +115,8 @@ export function OptionGroup<T extends string>({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { flexGrow: 1 },
-  body: { flex: 1, padding: spacing.lg, gap: spacing.md },
+  // Readable line length on wide (landscape) screens: content is centred, at most 680 wide.
+  body: { flex: 1, padding: spacing.lg, gap: spacing.md, width: '100%', maxWidth: 680, alignSelf: 'center' },
   heading: { fontSize: fontSize.heading, fontWeight: '700' },
   body16: { fontSize: fontSize.body, lineHeight: 22 },
   button: { minHeight: 48, borderRadius: radius.md, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
