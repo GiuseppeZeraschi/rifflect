@@ -74,3 +74,16 @@ export function hasPlaying(samples: Float32Array, onsetsMs: number[]): boolean {
   const plucks = countPluckLike(samples, onsetsMs);
   return plucks >= ONSETS.minPluckOnsets && plucks / onsetsMs.length >= ONSETS.minPluckShare;
 }
+
+/**
+ * Drop handling noise at the start and end of a take: unpitched onsets within ONSETS.handlingEdgeMs
+ * of either end (the tap on Record or Stop). Found on real takes, where the Record tap became
+ * "beat 1" and counted as a buzzed note.
+ */
+export function dropHandlingNoise(samples: Float32Array, onsetsMs: number[]): number[] {
+  const endMs = (samples.length / SR) * 1000;
+  return onsetsMs.filter((t) => {
+    const atEdge = t < ONSETS.handlingEdgeMs || t > endMs - ONSETS.handlingEdgeMs;
+    return !atEdge || periodicity(samples, t + 30, t + 130) >= ONSETS.handlingMaxPeriodicity;
+  });
+}

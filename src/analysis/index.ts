@@ -10,7 +10,7 @@ import { AUDIO, CONFIDENCE_FLOOR, ENGINE_VERSION, TECHNIQUE } from './config/thr
 import { defaultDsp, type Dsp } from './dsp';
 import { buildSummary, renderFinding } from './feedback-text/render';
 import { limitation } from './limitations';
-import { hasPlaying } from './playing';
+import { dropHandlingNoise, hasPlaying } from './playing';
 import { techniqueScore, timingScore } from './scoring/scores';
 import { analyseTechnique } from './technique';
 import type { ClarityContext } from './technique/clarity';
@@ -79,8 +79,9 @@ export async function analyseTake(input: AnalysisInput, opts?: AnalysisOptions, 
   const { samples } = input.audio;
   await step(opts, 0);
 
-  // 1. Onsets.
-  const onsets = detectOnsets(samples, dsp);
+  // 1. Onsets, without handling noise at the edges of the take.
+  const detected = detectOnsets(samples, dsp);
+  const onsets = { ...detected, onsetsMs: dropHandlingNoise(samples, detected.onsetsMs) };
   await step(opts, 0.3);
 
   // 2. Accompaniment detection (US4, research.md R16). 'off' skips it entirely, so the result is

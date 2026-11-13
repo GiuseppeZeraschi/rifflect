@@ -7,7 +7,7 @@
  * contracts/analysis-engine.md.
  */
 
-export const ENGINE_VERSION = '1.0.0+t2';
+export const ENGINE_VERSION = '1.0.0+t3';
 
 /** Findings below this confidence are never emitted (contract guarantee 6). */
 export const CONFIDENCE_FLOOR = 0.6;
@@ -50,6 +50,14 @@ export const ONSETS = {
   pluckPeriodicity: 0.8,
   /** … and pluck-like onsets must be at least this share of all onsets (noise produces chance hits). */
   minPluckShare: 0.25,
+  /**
+   * Handling noise: in the first and last this-many ms of a take (tapping Record or Stop, picking
+   * the guitar up), an onset without a clear pitch isn't a note and is ignored. Only at the edges:
+   * mid-take, unpitched onsets (muted strums) are real playing.
+   */
+  handlingEdgeMs: 1000,
+  /** … "without a clear pitch": periodicity below this (notes on real takes score 0.8–0.98). */
+  handlingMaxPeriodicity: 0.5,
 } as const;
 
 export const TEMPO = {
