@@ -44,7 +44,13 @@
       "expo-sqlite",
       "expo-sharing",
       "expo-video",
-      "./plugins/withReleaseSigning.js"
+      "./plugins/withReleaseSigning.js",
+      [
+        "./plugins/withCmakeVersion.js",
+        {
+          "version": "4.1.2"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

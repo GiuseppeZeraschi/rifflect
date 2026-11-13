@@ -76,6 +76,7 @@ function AppNavigator() {
     <View testID="app-root" style={styles.root}>
       <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Protected guard={hasProfile}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="take/[id]/index" options={{ title: 'Feedback' }} />
