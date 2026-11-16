@@ -21,6 +21,9 @@ function run(cmd, args, cwd) {
 }
 
 run('npx', ['expo', 'prebuild', '--platform', 'android', '--no-install'], root);
-run(isWin ? 'gradlew.bat' : './gradlew', ['assembleRelease'], path.join(root, 'android'));
+// arm64-v8a only: the Nothing Phone (4a) is 64-bit ARM. Building every ABI made a ~500 MB APK.
+// Full path: Windows may be set not to run programs from the current folder (NoDefaultCurrentDirectoryInExePath).
+const androidDir = path.join(root, 'android');
+run(path.join(androidDir, isWin ? 'gradlew.bat' : 'gradlew'), ['assembleRelease', '-PreactNativeArchitectures=arm64-v8a'], androidDir);
 console.log('\nRelease APK: android/app/build/outputs/apk/release/app-release.apk');
 console.log('Install it with: npm run install:apk');

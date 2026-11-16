@@ -63,7 +63,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
   - `src/{capture,jobs,data/db,data/repositories,data/files,native,features,ui,lib}/`
   - `tests/{unit,analysis,fixtures,components,helpers}/`
   - `e2e/`, `tools/eval/`
-- [ ] T007 [P] Set up release signing and APK scripts ([research.md R17](./research.md#r17-distribution-and-data-safety-personal-use)):
+- [X] T007 [P] Set up release signing and APK scripts ([research.md R17](./research.md#r17-distribution-and-data-safety-personal-use)):
   - **Config plugin** `plugins/withReleaseSigning.js`, registered in `app.json` `plugins`: on `expo prebuild`, add a `release` `signingConfig` to `android/app/build.gradle` that reads `RIFFLECT_STORE_FILE`, `RIFFLECT_KEY_ALIAS`, `RIFFLECT_STORE_PASSWORD` and `RIFFLECT_KEY_PASSWORD` from Gradle properties (the user-level `~/.gradle/gradle.properties`), and use it for the `release` build type. If the properties are missing, fail the release build with a clear message rather than falling back to the debug key.
   - **npm scripts** in `package.json`: `build:apk` (`expo prebuild --platform android` then `gradlew assembleRelease` in `android/`; use `gradlew.bat` on Windows) and `install:apk` (`adb install -r android/app/build/outputs/apk/release/app-release.apk`).
   - **Never commit** the keystore or passwords; the existing `.gitignore` already excludes `*.jks` and `*.keystore`.
