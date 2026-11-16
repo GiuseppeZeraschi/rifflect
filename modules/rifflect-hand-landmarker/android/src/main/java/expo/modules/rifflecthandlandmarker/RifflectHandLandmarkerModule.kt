@@ -24,7 +24,6 @@ import java.nio.ByteOrder
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 /**
  * Post-take hand tracking (tasks.md T021; contracts/native-modules.md § 1, extractLandmarksFromVideo).
@@ -49,13 +48,25 @@ class RifflectHandLandmarkerModule : Module() {
 
   private fun toPath(uri: String): String = if (uri.startsWith("file://")) Uri.parse(uri).path ?: uri else uri
 
-  private fun createLandmarker(context: Context): HandLandmarker {
+  /** GPU when the phone supports it (usually several times faster), else CPU. */
+  private fun createLandmarker(context: Context): Pair<HandLandmarker, String> {
     // Read the model into memory: loading it by asset path needs the file stored uncompressed in the APK.
     val bytes = context.assets.open(MODEL_ASSET).use { it.readBytes() }
+    for (delegate in listOf(Delegate.GPU, Delegate.CPU)) {
+      try {
+        return Pair(createLandmarker(context, bytes, delegate), delegate.name)
+      } catch (e: Exception) {
+        android.util.Log.w(TAG, "Hand landmarker on $delegate failed: ${e.message}")
+      }
+    }
+    throw CodedException("E_EXTRACT_FAILED", "Couldn't start hand tracking", null)
+  }
+
+  private fun createLandmarker(context: Context, bytes: ByteArray, delegate: Delegate): HandLandmarker {
     val model = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder()).put(bytes)
     model.rewind()
     val options = HandLandmarker.HandLandmarkerOptions.builder()
-      .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(model).setDelegate(Delegate.CPU).build())
+      .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(model).setDelegate(delegate).build())
       .setRunningMode(RunningMode.VIDEO)
       .setNumHands(2)
       .setMinHandDetectionConfidence(0.5f)
@@ -97,7 +108,8 @@ class RifflectHandLandmarkerModule : Module() {
       codec = MediaCodec.createDecoderByType(mime)
       codec.configure(format, null, null, 0)
       codec.start()
-      landmarker = createLandmarker(context)
+      val (created, delegateName) = createLandmarker(context)
+      landmarker = created
 
       val stepUs = (1_000_000.0 / fps).toLong()
       var nextSampleUs = 0L
@@ -105,6 +117,9 @@ class RifflectHandLandmarkerModule : Module() {
       var frames = 0
       var framesWithHands = 0
       var lastProgress = -1.0
+      var convertNs = 0L
+      var detectNs = 0L
+      val startNs = System.nanoTime()
       val info = MediaCodec.BufferInfo()
       var inputDone = false
       var outputDone = false
@@ -134,8 +149,12 @@ class RifflectHandLandmarkerModule : Module() {
               if (image != null) {
                 val tMs = pts / 1000
                 if (tMs > lastTimestampMs) {
+                  val c0 = System.nanoTime()
                   val (bitmap, brightness) = toBitmap(image, rotation)
+                  val c1 = System.nanoTime()
                   val result = landmarker.detectForVideo(BitmapImageBuilder(bitmap).build(), tMs)
+                  detectNs += System.nanoTime() - c1
+                  convertNs += c1 - c0
                   bitmap.recycle()
                   if (result.landmarks().isNotEmpty()) framesWithHands++
                   writeLine(out, tMs, result, brightness)
@@ -163,7 +182,17 @@ class RifflectHandLandmarkerModule : Module() {
         if (!tmp.renameTo(File(outPath))) throw CodedException("E_EXTRACT_FAILED", "Couldn't write $outPath", null)
       }
       onProgress(1.0)
-      return mapOf("path" to Uri.fromFile(File(outPath)).toString(), "frames" to frames, "framesWithHands" to framesWithHands)
+      val totalMs = (System.nanoTime() - startNs) / 1_000_000
+      android.util.Log.i(TAG, "frames=$frames total=${totalMs}ms convert=${convertNs / 1_000_000}ms detect=${detectNs / 1_000_000}ms rotation=$rotation delegate=$delegateName")
+      return mapOf(
+        "path" to Uri.fromFile(File(outPath)).toString(),
+        "frames" to frames,
+        "framesWithHands" to framesWithHands,
+        "totalMs" to totalMs,
+        "convertMs" to convertNs / 1_000_000,
+        "detectMs" to detectNs / 1_000_000,
+        "delegate" to delegateName,
+      )
     } catch (e: CodedException) {
       throw e
     } catch (e: Exception) {
@@ -190,9 +219,25 @@ class RifflectHandLandmarkerModule : Module() {
     }
   }
 
+  // Plane copies reused across frames (one decoder, one thread).
+  private var yBytes = ByteArray(0)
+  private var uBytes = ByteArray(0)
+  private var vBytes = ByteArray(0)
+
+  private fun copyPlane(buf: ByteBuffer, into: ByteArray): ByteArray {
+    val src = buf.duplicate()
+    src.rewind()
+    val n = src.remaining()
+    val out = if (into.size >= n) into else ByteArray(n)
+    src.get(out, 0, n)
+    return out
+  }
+
   /**
    * YUV_420_888 → ARGB_8888, downscaled (nearest sample) to at most MAX_SIDE and rotated by
    * `rotation` degrees clockwise for display. Also returns mean luma / 255 (brightness).
+   * Integer BT.601 maths over plain arrays: no per-pixel allocation or buffer calls (this step took
+   * 128 ms a frame when it read the image buffers pixel by pixel).
    */
   private fun toBitmap(image: Image, rotation: Int): Pair<Bitmap, Double> {
     val w = image.width
@@ -206,33 +251,44 @@ class RifflectHandLandmarkerModule : Module() {
     val yP = image.planes[0]
     val uP = image.planes[1]
     val vP = image.planes[2]
-    val yBuf = yP.buffer
-    val uBuf = uP.buffer
-    val vBuf = vP.buffer
+    yBytes = copyPlane(yP.buffer, yBytes)
+    uBytes = copyPlane(uP.buffer, uBytes)
+    vBytes = copyPlane(vP.buffer, vBytes)
+    val yRow = yP.rowStride
+    val yPix = yP.pixelStride
+    val uRow = uP.rowStride
+    val uPix = uP.pixelStride
+    val vRow = vP.rowStride
+    val vPix = vP.pixelStride
     val pixels = IntArray(ow * oh)
     var lumaSum = 0L
-    for (oy in 0 until oh) {
-      for (ox in 0 until ow) {
-        // Source (scaled) coordinates for this displayed pixel.
-        val (gx, gy) = when (rot) {
-          90 -> Pair(oy, sh - 1 - ox)
-          180 -> Pair(sw - 1 - ox, sh - 1 - oy)
-          270 -> Pair(sw - 1 - oy, ox)
-          else -> Pair(ox, oy)
-        }
+    for (gy in 0 until sh) {
+      val y = gy * step
+      val yBase = y * yRow
+      val uBase = (y shr 1) * uRow
+      val vBase = (y shr 1) * vRow
+      for (gx in 0 until sw) {
         val x = gx * step
-        val y = gy * step
-        val yy = yBuf.get(y * yP.rowStride + x * yP.pixelStride).toInt() and 0xff
-        val cx = x / 2
-        val cy = y / 2
-        val u = (uBuf.get(cy * uP.rowStride + cx * uP.pixelStride).toInt() and 0xff) - 128
-        val v = (vBuf.get(cy * vP.rowStride + cx * vP.pixelStride).toInt() and 0xff) - 128
+        val yy = yBytes[yBase + x * yPix].toInt() and 0xff
+        val cx = x shr 1
+        val d = (uBytes[uBase + cx * uPix].toInt() and 0xff) - 128
+        val e = (vBytes[vBase + cx * vPix].toInt() and 0xff) - 128
         lumaSum += yy
-        val c = 1.164 * (yy - 16)
-        val r = (c + 1.596 * v).roundToInt().coerceIn(0, 255)
-        val g = (c - 0.392 * u - 0.813 * v).roundToInt().coerceIn(0, 255)
-        val b = (c + 2.017 * u).roundToInt().coerceIn(0, 255)
-        pixels[oy * ow + ox] = (0xff shl 24) or (r shl 16) or (g shl 8) or b
+        val c = 298 * (yy - 16)
+        var r = (c + 409 * e + 128) shr 8
+        var g = (c - 100 * d - 208 * e + 128) shr 8
+        var b = (c + 516 * d + 128) shr 8
+        if (r < 0) r = 0 else if (r > 255) r = 255
+        if (g < 0) g = 0 else if (g > 255) g = 255
+        if (b < 0) b = 0 else if (b > 255) b = 255
+        // Where this source pixel lands once the frame is turned upright (rotation clockwise).
+        val idx = when (rot) {
+          90 -> gx * ow + (sh - 1 - gy)
+          180 -> (sh - 1 - gy) * ow + (sw - 1 - gx)
+          270 -> (sw - 1 - gx) * ow + gy
+          else -> gy * ow + gx
+        }
+        pixels[idx] = (0xff shl 24) or (r shl 16) or (g shl 8) or b
       }
     }
     val bitmap = Bitmap.createBitmap(pixels, ow, oh, Bitmap.Config.ARGB_8888)
@@ -264,5 +320,6 @@ class RifflectHandLandmarkerModule : Module() {
   companion object {
     private const val MODEL_ASSET = "hand_landmarker.task"
     private const val MAX_SIDE = 640
+    private const val TAG = "RifflectHands"
   }
 }

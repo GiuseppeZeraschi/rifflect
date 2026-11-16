@@ -1,6 +1,7 @@
 /**
  * Technique engine tests (tasks.md T037) on synthetic hand landmarks and synthetic notes.
  */
+import { TECHNIQUE } from '@/analysis/config/thresholds';
 import { analyseTechnique } from '@/analysis/technique';
 import { assignHands } from '@/analysis/technique/hands';
 import { analyseClarity } from '@/analysis/technique/clarity';
@@ -63,16 +64,31 @@ describe('fretting-hand rules', () => {
     expect(codes(technique(frames).findings)).toContain('technique.flat_fingers');
   });
 
-  it('flags fingers lifting high between notes', () => {
-    const frames = landmarkStream({
-      durationMs: DURATION,
-      fretting: (t) => ({
-        ...DEFAULT_FRETTING,
-        fingerLift: Math.floor(t / 600) % 2 === 0 ? 0 : 0.55,
-      }),
-      picking: strummingHand(strokes),
+  describe('fingers lifting high (switched off until tuned on real takes)', () => {
+    const lifting = () =>
+      landmarkStream({
+        durationMs: DURATION,
+        fretting: (t) => ({
+          ...DEFAULT_FRETTING,
+          fingerLift: Math.floor(t / 600) % 2 === 0 ? 0 : 0.55,
+        }),
+        picking: strummingHand(strokes),
+      });
+
+    it('is not reported while switched off', () => {
+      expect(TECHNIQUE.fingerLiftEnabled).toBe(false);
+      expect(codes(technique(lifting()).findings)).not.toContain('technique.fingers_lifting_high');
     });
-    expect(codes(technique(frames).findings)).toContain('technique.fingers_lifting_high');
+
+    it('flags fingers lifting high between notes when switched on', () => {
+      const t = TECHNIQUE as { fingerLiftEnabled: boolean };
+      t.fingerLiftEnabled = true;
+      try {
+        expect(codes(technique(lifting()).findings)).toContain('technique.fingers_lifting_high');
+      } finally {
+        t.fingerLiftEnabled = false;
+      }
+    });
   });
 
   it('flags wrist strain only when the extreme angle is held for more than 5 s', () => {

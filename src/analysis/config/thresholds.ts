@@ -7,7 +7,7 @@
  * contracts/analysis-engine.md.
  */
 
-export const ENGINE_VERSION = '1.2.0';
+export const ENGINE_VERSION = '1.2.1';
 
 /** Findings below this confidence are never emitted (contract guarantee 6). */
 export const CONFIDENCE_FLOOR = 0.6;
@@ -92,6 +92,12 @@ export const TECHNIQUE = {
   flatFingerPipDeg: 155,
   /** Fingertip lift (fraction of hand length) counted as lifting high. */
   fingerLiftHandFraction: 0.35,
+  /**
+   * Off until tuned on labelled real takes: from a front-facing camera, fingers curling away while
+   * the index finger frets look like lifting (real takes measured 66–98% of hand length; the player
+   * saw no high lifting in the video).
+   */
+  fingerLiftEnabled: false,
   /** Fraction of the take the thumb must be over the neck to report it. */
   thumbOverNeckFraction: 0.6,
   /** Picking-hand stroke amplitude/interval coefficient of variation counted as inconsistent. */

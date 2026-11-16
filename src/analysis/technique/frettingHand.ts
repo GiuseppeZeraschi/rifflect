@@ -82,7 +82,7 @@ export function analyseFretting(tracks: HandTracks): Finding[] {
 
   // Fingers lifting high: a fingertip's travel along the hand axis between notes.
   const maxLift = Math.max(...tipRange);
-  if (maxLift > TECHNIQUE.fingerLiftHandFraction) {
+  if (TECHNIQUE.fingerLiftEnabled && maxLift > TECHNIQUE.fingerLiftHandFraction) {
     const finger = ['index', 'middle', 'ring', 'pinky'][tipRange.indexOf(maxLift)]!;
     out.push({
       category: 'technique',
