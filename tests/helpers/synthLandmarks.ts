@@ -7,9 +7,9 @@
  * Conventions shared with src/analysis/technique (see hands.ts):
  * - Coordinates are normalised (0..1), y grows downwards, frames are un-mirrored (the player is seen
  *   as by someone facing them).
- * - MediaPipe assumes selfie (mirrored) input, so on un-mirrored frames its `side` label is the
- *   OPPOSITE of the true hand. `mirrored: true` simulates frames that were left mirrored (x → 1−x,
- *   labels then correct).
+ * - MediaPipe labels a hand by how it looks: on un-mirrored frames its `side` is the true hand.
+ *   `mirrored: true` simulates frames left mirrored (x → 1−x, and the label then the OPPOSITE of
+ *   the true hand), as recorded by the front camera.
  * - A right-handed player's fretting (left) hand appears on the image's right; for left-handed
  *   players, on the left.
  */
@@ -84,7 +84,7 @@ export interface StreamOptions {
   durationMs: number;
   fps?: number;
   handedness?: 'right' | 'left';
-  /** Simulate frames left mirrored (x → 1−x, MediaPipe labels then correct). */
+  /** Simulate frames left mirrored (x → 1−x, MediaPipe labels then flipped). */
   mirrored?: boolean;
   /** Fretting-hand pose over time (null = not visible). */
   fretting?: (tMs: number) => HandPose | null;
@@ -116,13 +116,19 @@ export function landmarkStream(opts: StreamOptions): LandmarkFrame[] {
         if (!pose) return;
         // Left-handed players mirror the whole layout (fretting hand on image left).
         const p: HandPose =
-          handed === 'left' ? { ...pose, wrist: [1 - pose.wrist[0], pose.wrist[1]], rotationDeg: -(pose.rotationDeg ?? 0) } : pose;
+          handed === 'left'
+            ? {
+                ...pose,
+                wrist: [1 - pose.wrist[0], pose.wrist[1]],
+                rotationDeg: -(pose.rotationDeg ?? 0),
+              }
+            : pose;
         let pts = handPoints(p, trueSide);
-        // MediaPipe label on un-mirrored frames = opposite of the true side.
-        let side: 'Left' | 'Right' = trueSide === 'Left' ? 'Right' : 'Left';
+        // MediaPipe label = how the hand looks: the true side, flipped on mirrored frames.
+        let side: 'Left' | 'Right' = trueSide;
         if (opts.mirrored) {
           pts = pts.map(([x, y, z]) => [1 - x, y, z] as Point3);
-          side = trueSide;
+          side = trueSide === 'Left' ? 'Right' : 'Left';
         }
         hands.push({ side, score: opts.score ?? 0.95, pts });
       };
@@ -141,7 +147,13 @@ export function landmarkStream(opts: StreamOptions): LandmarkFrame[] {
  */
 export function strummingHand(
   strokeTimesMs: number[],
-  { top = 0.5, bottom = 0.7, strokeMs = 120, x = 0.3, amplitudes }: { top?: number; bottom?: number; strokeMs?: number; x?: number; amplitudes?: number[] } = {},
+  {
+    top = 0.5,
+    bottom = 0.7,
+    strokeMs = 120,
+    x = 0.3,
+    amplitudes,
+  }: { top?: number; bottom?: number; strokeMs?: number; x?: number; amplitudes?: number[] } = {},
 ): (tMs: number) => HandPose {
   return (tMs: number) => {
     // Find the stroke whose window contains t, or the last completed stroke.

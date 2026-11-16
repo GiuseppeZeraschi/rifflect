@@ -127,6 +127,11 @@ export function markInterrupted(db: Db, id: string, c: { durationMs?: number; fi
   return requireTake(db, id);
 }
 
+/** Landmarks extracted after the take (relative path), kept for re-analysis. */
+export function setLandmarksPath(db: Db, id: string, landmarksPath: string | null): void {
+  db.update(take).set({ landmarksPath, updatedAt: nowIso() }).where(eq(take.id, id)).run();
+}
+
 export function setAnalysisStatus(db: Db, id: string, status: AnalysisStatus): void {
   db.update(take).set({ analysisStatus: status, updatedAt: nowIso() }).where(eq(take.id, id)).run();
 }

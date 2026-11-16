@@ -14,7 +14,7 @@ import { AUDIO, LANDMARKS } from '@/analysis/config/thresholds';
 import type { Db } from '@/data/db/types';
 import type { TakeFiles } from '@/data/files/takeFiles';
 import { saveReport } from '@/data/repositories/reportsRepo';
-import { getTake } from '@/data/repositories/takesRepo';
+import { getTake, setLandmarksPath } from '@/data/repositories/takesRepo';
 import type { DecodeResult } from '@/native/audioDecoder';
 import { BEATS_PER_BAR } from '@/lib/meter';
 import { loadPcm } from '@/native/pcm';
@@ -30,8 +30,13 @@ export interface RunnerDeps {
   ): Promise<DecodeResult>;
   readPcmChunk(pcmUri: string, offsetFrames: number, frames: number): Float32Array;
   readLandmarks(uri: string): Promise<LandmarkFrame[]>;
-  /** Post-take landmark extraction fallback (research R3); absent until the native module exists. */
-  extractLandmarksFromVideo?(videoUri: string, fps: number): Promise<string>;
+  /** Hand tracking after the take (research R3, tasks.md T021): returns the landmarks file's relative path. */
+  extractLandmarksFromVideo?(
+    takeId: string,
+    videoUri: string,
+    fps: number,
+    onProgress: (fraction: number) => void,
+  ): Promise<string>;
   analyse?: (
     input: AnalysisInput,
     opts: { onProgress: (p: number) => void; signal: AbortSignal },
@@ -41,9 +46,12 @@ export interface RunnerDeps {
   keepPcm?: boolean;
 }
 
-/** Decoding and loading take the first 25% of the progress bar; the engine the rest. */
-
+/**
+ * Progress bar: decoding and loading the audio take the first 25%; hand tracking after the take (when
+ * it runs) the next 40%, as it processes the whole video; the engine the rest.
+ */
 const DECODE_SHARE = 0.25;
+const LANDMARK_SHARE = 0.4;
 
 export function createRunner(deps: RunnerDeps): Runner {
   const analyse = deps.analyse ?? ((input, opts) => analyseTake(input, opts));
@@ -70,15 +78,21 @@ export function createRunner(deps: RunnerDeps): Runner {
       });
 
       let landmarks: LandmarkFrame[] | null = null;
+      let engineFrom = DECODE_SHARE;
       if (take.landmarksPath) {
         landmarks = await deps.readLandmarks(deps.files.toAbsolute(take.landmarksPath));
       } else if (deps.extractLandmarksFromVideo) {
         try {
-          const rel = await deps.extractLandmarksFromVideo(videoUri, LANDMARKS.fps);
+          const rel = await deps.extractLandmarksFromVideo(takeId, videoUri, LANDMARKS.fps, (p) =>
+            onProgress(DECODE_SHARE + LANDMARK_SHARE * p),
+          );
+          // Keep them: re-analysis (e.g. a different accompaniment setting) needn't track again.
+          setLandmarksPath(deps.db, takeId, rel);
           landmarks = await deps.readLandmarks(deps.files.toAbsolute(rel));
         } catch {
           landmarks = null; // analysed from sound only, with a landmarks_missing limitation
         }
+        engineFrom = DECODE_SHARE + LANDMARK_SHARE;
       }
       if (landmarks && landmarks.length === 0) landmarks = null;
 
@@ -100,7 +114,7 @@ export function createRunner(deps: RunnerDeps): Runner {
           landmarksMirrored: take.cameraPosition === 'front',
           interrupted: take.interrupted,
         },
-        { onProgress: (p) => onProgress(DECODE_SHARE + (1 - DECODE_SHARE) * p), signal },
+        { onProgress: (p) => onProgress(engineFrom + (1 - engineFrom) * p), signal },
       );
       if (signal.aborted) throw new Error('Analysis cancelled');
       saveReport(deps.db, takeId, result, now() - started);

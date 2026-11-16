@@ -283,8 +283,8 @@ function Recorder() {
             ) : null}
             {landscape ? null : (
               <Text style={{ color: p.textMuted, fontSize: fontSize.caption }}>
-                Frame both hands and the guitar neck. Hand tracking arrives in a later build; for
-                now, feedback is on timing.
+                Frame both hands and the guitar neck: your hands are tracked after each take for
+                technique feedback.
               </Text>
             )}
           </>

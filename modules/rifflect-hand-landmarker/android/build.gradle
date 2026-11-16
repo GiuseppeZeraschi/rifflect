@@ -1,0 +1,26 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.rifflecthandlandmarker'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.rifflecthandlandmarker"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  // The MediaPipe model lives in the app's assets/models (one copy, with its README and checksum).
+  sourceSets {
+    main {
+      assets.srcDirs += ["${projectDir}/../../../assets/models"]
+    }
+  }
+}
+
+dependencies {
+  // 0.10.x: the HandLandmarker API used here. 1.x adds an on-device LLM runtime we don't need.
+  implementation 'com.google.mediapipe:tasks-vision:0.10.35'
+}

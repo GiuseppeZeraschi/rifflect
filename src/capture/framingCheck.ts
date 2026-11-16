@@ -4,6 +4,7 @@
  * The camera wiring (frame-output worklet → this check) lives with the Record screen.
  */
 import { FRAMING, TECHNIQUE } from '@/analysis/config/thresholds';
+import { trueSideOf } from '@/analysis/technique/hands';
 import type { Handedness, Point3 } from '@/analysis/types';
 import type { HandsResult } from '@/native/handTypes';
 
@@ -23,12 +24,10 @@ export const FRAMING_HINTS: Record<FramingStatus, string> = {
   low_light: 'It’s too dark to see your hands. Turn on a light or face a window.',
 };
 
-const flip = (s: 'Left' | 'Right') => (s === 'Left' ? 'Right' : 'Left');
-
 function frettingHand(r: HandsResult, handedness: Handedness, mirrored: boolean): Point3[] | null {
   const want: 'Left' | 'Right' = handedness === 'right' ? 'Left' : 'Right';
   const h = r.hands.find(
-    (x) => x.score >= TECHNIQUE.minHandScore && (mirrored ? x.side : flip(x.side)) === want,
+    (x) => x.score >= TECHNIQUE.minHandScore && trueSideOf(x.side, mirrored) === want,
   );
   return h?.pts ?? null;
 }

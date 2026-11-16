@@ -153,7 +153,7 @@ This is a single Expo/React Native app at the repository root ([plan.md § Proje
 - [ ] T020 (device) Implement the native landmark writer (`openLandmarkWriter(takeId)`, `append`, `close`) for Android in `modules/rifflect-hand-landmarker/android/src/main/java/com/margelo/nitro/rifflect/handlandmarker/LandmarkWriter.kt`.
   - **Format**: append JSON Lines `{ "t": tMs, "hands": [{ "side", "score", "pts" }] }` to `takes/<takeId>/landmarks.jsonl`.
   - **Flushing**: buffer and flush at least every 1 s, so a crash loses at most 1 s of frames.
-- [ ] T021 (device) Implement `extractLandmarksFromVideo(videoPath, fps)` for Android in `modules/rifflect-hand-landmarker/android/src/main/java/com/margelo/nitro/rifflect/handlandmarker/LandmarkExtractor.kt`. It is the fallback when the live stream is missing:
+- [X] T021 (device) (built as a plain Expo module, `modules/rifflect-hand-landmarker/android/.../RifflectHandLandmarkerModule.kt`, so it shipped before the Nitro live path; the runner keeps the file as `Take.landmarksPath`) Implement `extractLandmarksFromVideo(videoPath, fps)` for Android. It is the fallback when the live stream is missing:
   - **Decode frames**: `MediaMetadataRetriever.getFrameAtTime` / `MediaCodec`.
   - **Detect**: run `detectForVideo` at `fps`.
   - **Output**: write `landmarks.jsonl` and return its path.

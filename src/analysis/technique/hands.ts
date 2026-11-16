@@ -1,9 +1,12 @@
 /**
  * Hand roles, smoothing and coverage (tasks.md T045, contract guarantee 5).
  *
- * MediaPipe labels handedness as if the image were a mirrored selfie. Our frames are un-mirrored by
- * default, so its label is the opposite of the true hand; when `mirrored` is true the label is used
- * as-is. A right-handed player frets with the true left hand; a left-handed player with the right.
+ * MediaPipe labels each hand by how it looks in the image it was given: on an un-mirrored frame the
+ * label is the true hand; on a mirrored (selfie) frame a left hand looks like a right one, so the
+ * label is the opposite. (Its docs suggest the reverse; real front-camera takes showed this, see
+ * tests/analysis/realHands.test.ts.) Mirrored frames are also un-mirrored here (x → 1 − x), so
+ * every technique check sees the un-mirrored view. A right-handed player frets with the true left
+ * hand; a left-handed player with the right.
  */
 import { FRAMING, TECHNIQUE } from '../config/thresholds';
 import type { Handedness, LandmarkFrame, Point3 } from '../types';
@@ -28,6 +31,10 @@ export interface HandTracks {
 }
 
 const flip = (s: 'Left' | 'Right') => (s === 'Left' ? 'Right' : 'Left');
+
+/** The player's true hand from MediaPipe's label: the label as-is, or flipped on mirrored frames. */
+export const trueSideOf = (label: 'Left' | 'Right', mirrored: boolean): 'Left' | 'Right' =>
+  mirrored ? flip(label) : label;
 const MIN_RANGE_MS = 1000;
 const SMOOTH_RESET_MS = 300;
 
@@ -76,7 +83,10 @@ function outOfFrame(pts: Point3[]): boolean {
   return pts.some(([x, y]) => x < m || x > 1 - m || y < m || y > 1 - m);
 }
 
-export function assignHands(frames: LandmarkFrame[], opts: { handedness: Handedness; mirrored: boolean }): HandTracks {
+export function assignHands(
+  frames: LandmarkFrame[],
+  opts: { handedness: Handedness; mirrored: boolean },
+): HandTracks {
   const frettingSide: 'Left' | 'Right' = opts.handedness === 'right' ? 'Left' : 'Right';
   const tMs = frames.map((f) => f.tMs);
   const rawFretting: (Point3[] | null)[] = [];
@@ -86,17 +96,21 @@ export function assignHands(frames: LandmarkFrame[], opts: { handedness: Handedn
     let pick: { pts: Point3[]; score: number } | null = null;
     for (const h of f.hands) {
       if (h.score < TECHNIQUE.minHandScore || h.pts.length !== 21) continue;
-      const trueSide = opts.mirrored ? h.side : flip(h.side);
+      const trueSide = trueSideOf(h.side, opts.mirrored);
+      const pts = opts.mirrored ? h.pts.map(([x, y, z]) => [1 - x, y, z] as Point3) : h.pts;
       if (trueSide === frettingSide) {
-        if (!fret || h.score > fret.score) fret = { pts: h.pts, score: h.score };
+        if (!fret || h.score > fret.score) fret = { pts, score: h.score };
       } else if (!pick || h.score > pick.score) {
-        pick = { pts: h.pts, score: h.score };
+        pick = { pts, score: h.score };
       }
     }
     rawFretting.push(fret?.pts ?? null);
     rawPicking.push(pick?.pts ?? null);
   }
-  const gaps = tMs.slice(1).map((t, i) => t - tMs[i]!).sort((a, b) => a - b);
+  const gaps = tMs
+    .slice(1)
+    .map((t, i) => t - tMs[i]!)
+    .sort((a, b) => a - b);
   const frameMs = gaps.length ? gaps[gaps.length >> 1]! : 1000 / 12;
   const n = Math.max(1, frames.length);
   return {
@@ -110,7 +124,11 @@ export function assignHands(frames: LandmarkFrame[], opts: { handedness: Handedn
       picking: rawPicking.filter(Boolean).length / n,
     },
     missingBoth: rangesWhere(tMs, frameMs, (i) => !rawFretting[i] && !rawPicking[i]),
-    frettingOutOfFrame: rangesWhere(tMs, frameMs, (i) => !!rawFretting[i] && outOfFrame(rawFretting[i]!)),
+    frettingOutOfFrame: rangesWhere(
+      tMs,
+      frameMs,
+      (i) => !!rawFretting[i] && outOfFrame(rawFretting[i]!),
+    ),
     frameMs,
   };
 }

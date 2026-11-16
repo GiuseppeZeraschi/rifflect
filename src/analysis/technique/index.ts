@@ -6,8 +6,9 @@
  * (`technique.wrist_strain`); whole-body posture is not assessed, so posture coverage is 0 and a
  * `posture_not_assessed` limitation is always present (research.md R3, R7).
  */
-import { FRAMING } from '../config/thresholds';
+import { FRAMING, TECHNIQUE } from '../config/thresholds';
 import { limitation } from '../limitations';
+import { chordShare } from '../playing';
 import type { Finding, Handedness, LandmarkFrame, Limitation } from '../types';
 import { analyseClarity, type ClarityContext } from './clarity';
 import { analyseFretting } from './frettingHand';
@@ -41,26 +42,58 @@ export interface TechniqueAnalysis {
 }
 
 export function analyseTechnique(input: TechniqueInput): TechniqueAnalysis {
-  const clarity = analyseClarity(input.claritySignal ?? input.samples, input.clarityOnsetsMs ?? input.onsetsMs, {
-    liveConfidence: input.liveConfidence,
-    context: input.clarityContext,
-  });
+  const clarity = analyseClarity(
+    input.claritySignal ?? input.samples,
+    input.clarityOnsetsMs ?? input.onsetsMs,
+    {
+      liveConfidence: input.liveConfidence,
+      context: input.clarityContext,
+    },
+  );
   const limitations: Limitation[] = [limitation('posture_not_assessed')];
 
   if (!input.landmarks || input.landmarks.length === 0) {
     limitations.unshift(limitation('landmarks_missing'));
-    return { findings: clarity, coverage: { frettingHand: 0, pickingHand: 0, posture: 0 }, limitations, tracks: null };
+    return {
+      findings: clarity,
+      coverage: { frettingHand: 0, pickingHand: 0, posture: 0 },
+      limitations,
+      tracks: null,
+    };
   }
 
-  const tracks = assignHands(input.landmarks, { handedness: input.handedness, mirrored: input.landmarksMirrored });
-  for (const [a, b] of tracks.missingBoth) limitations.unshift(limitation('hands_not_visible', a, b));
-  for (const [a, b] of tracks.frettingOutOfFrame) limitations.unshift(limitation('fretting_hand_out_of_frame', a, b));
-  const dark = rangesWhere(tracks.tMs, tracks.frameMs, (i) => (tracks.brightness[i] ?? 1) < FRAMING.lowLightBrightness);
+  const tracks = assignHands(input.landmarks, {
+    handedness: input.handedness,
+    mirrored: input.landmarksMirrored,
+  });
+  for (const [a, b] of tracks.missingBoth)
+    limitations.unshift(limitation('hands_not_visible', a, b));
+  for (const [a, b] of tracks.frettingOutOfFrame)
+    limitations.unshift(limitation('fretting_hand_out_of_frame', a, b));
+  const dark = rangesWhere(
+    tracks.tMs,
+    tracks.frameMs,
+    (i) => (tracks.brightness[i] ?? 1) < FRAMING.lowLightBrightness,
+  );
   for (const [a, b] of dark) limitations.unshift(limitation('low_light', a, b));
 
   return {
-    findings: [...analyseFretting(tracks), ...analysePicking(tracks, input.pickingOnsetsMs ?? input.onsetsMs), ...clarity],
-    coverage: { frettingHand: tracks.coverage.fretting, pickingHand: tracks.coverage.picking, posture: 0 },
+    findings: [
+      ...analyseFretting(tracks),
+      ...analysePicking(tracks, input.pickingOnsetsMs ?? input.onsetsMs, {
+        strumming:
+          chordShare(
+            input.claritySignal ?? input.samples,
+            input.clarityOnsetsMs ?? input.onsetsMs,
+          ) >= TECHNIQUE.strummingMinChordShare,
+      }),
+      ...clarity,
+    ],
+    coverage: {
+      frettingHand: tracks.coverage.fretting,
+      pickingHand: tracks.coverage.picking,
+      posture: 0,
+    },
     limitations,
     tracks,
   };

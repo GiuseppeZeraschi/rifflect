@@ -15,7 +15,11 @@ import type { Db } from '@/data/db/types';
 import { nowIso } from '@/lib/time';
 
 export type RunnerResult = 'analysed' | 'no_playing';
-export type Runner = (takeId: string, onProgress: (fraction: number) => void, signal: AbortSignal) => Promise<RunnerResult>;
+export type Runner = (
+  takeId: string,
+  onProgress: (fraction: number) => void,
+  signal: AbortSignal,
+) => Promise<RunnerResult>;
 
 export type QueueEvent =
   | { takeId: string; type: 'status'; status: AnalysisStatus }
@@ -43,7 +47,10 @@ export function createAnalysisQueue({ db, runner }: { db: Db; runner: Runner }):
   const emit = (e: QueueEvent) => listeners.forEach((l) => l(e));
 
   const setStatus = (takeId: string, status: AnalysisStatus) => {
-    db.update(take).set({ analysisStatus: status, updatedAt: nowIso() }).where(eq(take.id, takeId)).run();
+    db.update(take)
+      .set({ analysisStatus: status, updatedAt: nowIso() })
+      .where(eq(take.id, takeId))
+      .run();
     emit({ takeId, type: 'status', status });
   };
 
@@ -66,7 +73,11 @@ export function createAnalysisQueue({ db, runner }: { db: Db; runner: Runner }):
     running = { takeId, controller };
     try {
       setStatus(takeId, 'analysing');
-      const result = await runner(takeId, (progress) => emit({ takeId, type: 'progress', progress }), controller.signal);
+      const result = await runner(
+        takeId,
+        (progress) => emit({ takeId, type: 'progress', progress }),
+        controller.signal,
+      );
       errors.delete(takeId);
       setStatus(takeId, controller.signal.aborted ? 'pending' : result);
     } catch (e) {
@@ -84,7 +95,11 @@ export function createAnalysisQueue({ db, runner }: { db: Db; runner: Runner }):
   return {
     enqueue(takeId) {
       if (isQueued(takeId)) return;
-      const current = db.select({ s: take.analysisStatus }).from(take).where(eq(take.id, takeId)).get();
+      const current = db
+        .select({ s: take.analysisStatus })
+        .from(take)
+        .where(eq(take.id, takeId))
+        .get();
       if (!current) return;
       if (current.s !== 'pending') setStatus(takeId, 'pending');
       else emit({ takeId, type: 'status', status: 'pending' });

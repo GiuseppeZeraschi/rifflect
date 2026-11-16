@@ -10,7 +10,12 @@ import { onsetTrain, speechLike } from '../../helpers/synth';
 import { landmarkStream, strummingHand } from '../../helpers/synthLandmarks';
 import { createTestDb } from '../../helpers/testDb';
 
-const train = onsetTrain({ bpm: 100, beats: 40, beatOffset: { beat: 4, beatsPerBar: 4, offsetMs: -45 }, seed: 41 });
+const train = onsetTrain({
+  bpm: 100,
+  beats: 40,
+  beatOffset: { beat: 4, beatsPerBar: 4, offsetMs: -45 },
+  seed: 41,
+});
 const trainMs = Math.round(train.samples.length / 22.05);
 
 function setup(audio: Float32Array, landmarksJsonl: string | null) {
@@ -33,7 +38,13 @@ function setup(audio: Float32Array, landmarksJsonl: string | null) {
       calls.push(`decode ${videoUri.endsWith(`takes/${tk.id}/video.mp4`)}`);
       pcm.set(pcmUri, audio);
       store.addFile(pcmUri, audio.length * 4);
-      return { pcmPath: pcmUri, sampleRate: 22050, frames: audio.length, durationMs: audio.length / 22.05, peak: 1 };
+      return {
+        pcmPath: pcmUri,
+        sampleRate: 22050,
+        frames: audio.length,
+        durationMs: audio.length / 22.05,
+        peak: 1,
+      };
     },
     readPcmChunk: (uri, off, n) => pcm.get(uri)!.slice(off, off + n),
     readLandmarks: async () => (landmarksJsonl ? parseLandmarksJsonl(landmarksJsonl).frames : []),
@@ -49,11 +60,73 @@ const toJsonl = (frames: ReturnType<typeof landmarkStream>) =>
   frames.map((f) => JSON.stringify({ t: f.tMs, hands: f.hands, b: f.brightness })).join('\n');
 
 describe('analysis runner', () => {
+  it('tracks hands after the take when there are no live landmarks, and keeps the file', async () => {
+    const jsonl = toJsonl(
+      landmarkStream({ durationMs: trainMs, picking: strummingHand(train.onsetsMs) }),
+    );
+    const { t, files, tk, deps } = setup(train.samples, null);
+    const extract = jest.fn(
+      async (takeId: string, videoUri: string, fps: number, onProgress: (p: number) => void) => {
+        expect(videoUri).toBe(files.toAbsolute(tk.videoPath));
+        expect(fps).toBe(12);
+        onProgress(0.5);
+        onProgress(1);
+        return files.relLandmarksPath(takeId);
+      },
+    );
+    let readFrom = '';
+    const run = createRunner({
+      ...deps,
+      extractLandmarksFromVideo: extract,
+      readLandmarks: async (uri) => {
+        readFrom = uri;
+        return parseLandmarksJsonl(jsonl).frames;
+      },
+    });
+    const progress: number[] = [];
+    expect(await run(tk.id, (p) => progress.push(p), new AbortController().signal)).toBe(
+      'analysed',
+    );
+    expect(extract).toHaveBeenCalledTimes(1);
+    expect(readFrom).toBe(files.toAbsolute(files.relLandmarksPath(tk.id)));
+    expect(getTake(t.db, tk.id)?.landmarksPath).toBe(files.relLandmarksPath(tk.id));
+    // Hand tracking fills the middle of the progress bar, which never goes backwards.
+    expect(progress).toContain(0.45);
+    expect(progress.every((p, i) => i === 0 || p >= progress[i - 1]! - 1e-9)).toBe(true);
+    const report = getReportWithPoints(t.db, tk.id)!;
+    expect(report.report.limitations.map((l) => l.code)).not.toContain('landmarks_missing');
+
+    // Re-analysis reuses the kept file instead of tracking again.
+    await run(tk.id, () => {}, new AbortController().signal);
+    expect(extract).toHaveBeenCalledTimes(1);
+    t.close();
+  });
+
+  it('analyses from sound only if hand tracking fails', async () => {
+    const { t, tk, deps } = setup(train.samples, null);
+    const run = createRunner({
+      ...deps,
+      extractLandmarksFromVideo: async () => Promise.reject(new Error('E_EXTRACT_FAILED')),
+    });
+    expect(await run(tk.id, () => {}, new AbortController().signal)).toBe('analysed');
+    expect(getTake(t.db, tk.id)?.landmarksPath).toBeNull();
+    expect(getReportWithPoints(t.db, tk.id)!.report.limitations.map((l) => l.code)).toContain(
+      'landmarks_missing',
+    );
+    t.close();
+  });
+
   it('decodes, analyses with landmarks, saves the report and removes the PCM cache', async () => {
-    const jsonl = toJsonl(landmarkStream({ durationMs: trainMs, picking: strummingHand(train.onsetsMs) }));
+    const jsonl = toJsonl(
+      landmarkStream({ durationMs: trainMs, picking: strummingHand(train.onsetsMs) }),
+    );
     const { t, store, files, tk, deps, calls } = setup(train.samples, jsonl);
     const progress: number[] = [];
-    const status = await createRunner(deps)(tk.id, (p) => progress.push(p), new AbortController().signal);
+    const status = await createRunner(deps)(
+      tk.id,
+      (p) => progress.push(p),
+      new AbortController().signal,
+    );
 
     expect(status).toBe('analysed');
     expect(calls).toEqual(['decode true']);
@@ -77,7 +150,9 @@ describe('analysis runner', () => {
 
   it('returns no_playing for talking only', async () => {
     const { t, tk, deps } = setup(speechLike(8000), null);
-    expect(await createRunner(deps)(tk.id, () => {}, new AbortController().signal)).toBe('no_playing');
+    expect(await createRunner(deps)(tk.id, () => {}, new AbortController().signal)).toBe(
+      'no_playing',
+    );
     expect(getReportWithPoints(t.db, tk.id)!.points).toEqual([]);
     t.close();
   });

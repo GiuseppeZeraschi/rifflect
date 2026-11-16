@@ -23,15 +23,21 @@ export function createAnalysisProgressStore() {
     status: {},
     leftTakeIds: [],
     markLeft: (takeId) =>
-      set((s) => (s.leftTakeIds.includes(takeId) ? s : { leftTakeIds: [...s.leftTakeIds, takeId] })),
-    clearLeft: (takeId) => set((s) => ({ leftTakeIds: s.leftTakeIds.filter((id) => id !== takeId) })),
+      set((s) =>
+        s.leftTakeIds.includes(takeId) ? s : { leftTakeIds: [...s.leftTakeIds, takeId] },
+      ),
+    clearLeft: (takeId) =>
+      set((s) => ({ leftTakeIds: s.leftTakeIds.filter((id) => id !== takeId) })),
   }));
 }
 
 export type AnalysisProgressStore = ReturnType<typeof createAnalysisProgressStore>;
 
 /** Mirror queue events into the store. Returns an unsubscribe function. */
-export function connectProgressStore(queue: AnalysisQueue, store: AnalysisProgressStore): () => void {
+export function connectProgressStore(
+  queue: AnalysisQueue,
+  store: AnalysisProgressStore,
+): () => void {
   return queue.subscribe((e) => {
     if (e.type === 'progress') {
       store.setState((s) => ({ progress: { ...s.progress, [e.takeId]: e.progress } }));

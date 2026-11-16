@@ -25,7 +25,8 @@ export const recoveryStore = createStore<RecoveryState>()((set) => ({
   dismissLost: () => set({ lostCount: 0 }),
 }));
 
-export const useRecovery = <T,>(selector: (s: RecoveryState) => T) => useStore(recoveryStore, selector);
+export const useRecovery = <T>(selector: (s: RecoveryState) => T) =>
+  useStore(recoveryStore, selector);
 
 /** Can this recording be read? Decodes its audio to a scratch file, then removes it. */
 async function probe(videoUri: string): Promise<ProbeResult> {
@@ -48,7 +49,11 @@ export function startUp(): Promise<void> {
   started ??= (async () => {
     try {
       const r = await runRecovery({ db, files: takeFiles, probe });
-      recoveryStore.setState({ ran: true, interruptedIds: r.interruptedDraftIds, lostCount: r.lostCount });
+      recoveryStore.setState({
+        ran: true,
+        interruptedIds: r.interruptedDraftIds,
+        lostCount: r.lostCount,
+      });
     } catch {
       recoveryStore.setState({ ran: true });
     }

@@ -45,7 +45,8 @@ function openStringRinging(x: Float32Array, onsetMs: number, dsp: Dsp): boolean 
   const n = 4096;
   if (start + n > x.length) return false;
   const frame = new Float64Array(n);
-  for (let i = 0; i < n; i++) frame[i] = x[start + i]! * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
+  for (let i = 0; i < n; i++)
+    frame[i] = x[start + i]! * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
   const { re, im } = dsp.fft(frame);
   const mag = (hz: number) => {
     const b = Math.round((hz * n) / SR);
@@ -64,7 +65,9 @@ function openStringRinging(x: Float32Array, onsetMs: number, dsp: Dsp): boolean 
   }
   if (mainMag === 0 || mainHz < 150) return false;
   // A low peak that isn't a subharmonic artefact of the played note.
-  return OPEN_STRING_HZ.some((hz) => Math.abs(mainHz / hz - Math.round(mainHz / hz)) > 0.08 && mag(hz) > 0.5 * mainMag);
+  return OPEN_STRING_HZ.some(
+    (hz) => Math.abs(mainHz / hz - Math.round(mainHz / hz)) > 0.08 && mag(hz) > 0.5 * mainMag,
+  );
 }
 
 /**
@@ -92,7 +95,11 @@ export interface ClarityOptions {
   dsp?: Dsp;
 }
 
-export function analyseClarity(samples: Float32Array, onsetsMs: number[], opts: ClarityOptions = {}): Finding[] {
+export function analyseClarity(
+  samples: Float32Array,
+  onsetsMs: number[],
+  opts: ClarityOptions = {},
+): Finding[] {
   const dsp = opts.dsp ?? defaultDsp;
   const ctx = opts.context ?? { kind: 'solo' };
   const durationMs = (samples.length / SR) * 1000;
@@ -108,7 +115,8 @@ export function analyseClarity(samples: Float32Array, onsetsMs: number[], opts: 
     let from = t + buzzFrom;
     const to = Math.min(t + 80, next - 5);
     // A note just ahead of a click has the click inside its window: start after the click.
-    for (const c of clicks) if (c > t - CLICK_GUARD_MS && c < to) from = Math.max(from, c + CLICK_GUARD_MS);
+    for (const c of clicks)
+      if (c > t - CLICK_GUARD_MS && c < to) from = Math.max(from, c + CLICK_GUARD_MS);
     return to - from >= 20 ? highFrequencyRatio(samples, from, to) : 0;
   };
   let hf = usable.map(({ t, next }) => hfAt(t, next));
@@ -139,14 +147,18 @@ export function analyseClarity(samples: Float32Array, onsetsMs: number[], opts: 
 
   const solo = ctx.kind === 'solo';
   // Decay check only where the next onset is far enough away not to mask it.
-  const decayable = solo ? usable.filter(({ t, next }) => next - t >= 300 && t + 260 <= durationMs) : [];
+  const decayable = solo
+    ? usable.filter(({ t, next }) => next - t >= 300 && t + 260 <= durationMs)
+    : [];
   const muted = decayable.filter(({ t }) => {
     const early = energy(samples, t + 20, t + 60);
     const late = energy(samples, t + 150, t + 250);
     return early > 0 && late / early < 0.02;
   });
 
-  const open = solo ? usable.filter(({ t, next }) => next - t >= 400 && openStringRinging(samples, t, dsp)) : [];
+  const open = solo
+    ? usable.filter(({ t, next }) => next - t >= 400 && openStringRinging(samples, t, dsp))
+    : [];
 
   const out: Finding[] = [];
   const base = Math.min(0.9, 0.55 + usable.length / 60);
@@ -165,7 +177,8 @@ export function analyseClarity(samples: Float32Array, onsetsMs: number[], opts: 
   };
   if (buzzy.length >= 2) add('technique.fret_buzz', buzzy, usable.length);
   if (muted.length >= 2) add('technique.muted_notes', muted, decayable.length);
-  if (open.length >= 3 && open.length / usable.length >= 0.3) add('technique.unwanted_open_strings', open, usable.length);
+  if (open.length >= 3 && open.length / usable.length >= 0.3)
+    add('technique.unwanted_open_strings', open, usable.length);
 
   if (out.length === 0) {
     out.push({

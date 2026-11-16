@@ -7,7 +7,7 @@
  * contracts/analysis-engine.md.
  */
 
-export const ENGINE_VERSION = '1.1.1';
+export const ENGINE_VERSION = '1.2.0';
 
 /** Findings below this confidence are never emitted (contract guarantee 6). */
 export const CONFIDENCE_FLOOR = 0.6;
@@ -96,6 +96,10 @@ export const TECHNIQUE = {
   thumbOverNeckFraction: 0.6,
   /** Picking-hand stroke amplitude/interval coefficient of variation counted as inconsistent. */
   strumInconsistentCv: 0.35,
+  /** A note is a chord when its periodicity is below this (single notes ≥ 0.8, chords ≤ 0.6). */
+  chordMaxPeriodicity: 0.7,
+  /** Strumming checks only run when at least this share of notes are chords (else it's lead playing). */
+  strummingMinChordShare: 0.5,
   /** A pause longer than this many median stroke intervals counts as stopped motion. */
   strumPauseIntervals: 2.5,
   /** Live-onset confidence needed for clarity findings with accompaniment (guarantee 10). */

@@ -79,10 +79,20 @@ export function detectStrokes(tracks: HandTracks, minTravel = 0.2): Stroke[] {
   return strokes;
 }
 
-export function analysePicking(tracks: HandTracks, onsetsMs: number[]): Finding[] {
+/**
+ * Strumming checks (stopped motion, uneven strums). Only for strummed playing: in single-note lead
+ * the picking hand's movements naturally vary in size and spacing.
+ */
+export function analysePicking(
+  tracks: HandTracks,
+  onsetsMs: number[],
+  opts: { strumming: boolean } = { strumming: true },
+): Finding[] {
+  if (!opts.strumming) return [];
   const strokes = detectStrokes(tracks);
   if (strokes.length < 8) return [];
-  const conf = Math.min(0.9, 0.45 + 0.45 * tracks.coverage.picking) * Math.min(1, strokes.length / 16 + 0.5);
+  const conf =
+    Math.min(0.9, 0.45 + 0.45 * tracks.coverage.picking) * Math.min(1, strokes.length / 16 + 0.5);
   const out: Finding[] = [];
   const intervals = strokes.slice(1).map((s, i) => s.tMs - strokes[i]!.tMs);
   const sorted = [...intervals].sort((a, b) => a - b);
@@ -92,7 +102,11 @@ export function analysePicking(tracks: HandTracks, onsetsMs: number[]): Finding[
   const pauses = intervals
     .map((iv, i) => ({ iv, from: strokes[i]!.tMs, to: strokes[i + 1]!.tMs }))
     // Notes within 80 ms of the strokes at either end belong to those strokes, not to the pause.
-    .filter(({ iv, from, to }) => iv > TECHNIQUE.strumPauseIntervals * medianInterval && onsetsMs.filter((o) => o > from + 80 && o < to - 80).length >= 2);
+    .filter(
+      ({ iv, from, to }) =>
+        iv > TECHNIQUE.strumPauseIntervals * medianInterval &&
+        onsetsMs.filter((o) => o > from + 80 && o < to - 80).length >= 2,
+    );
   if (pauses.length > 0) {
     const longest = pauses.reduce((x, y) => (y.iv > x.iv ? y : x));
     out.push({

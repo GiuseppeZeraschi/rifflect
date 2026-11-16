@@ -35,7 +35,13 @@ export interface PluckOptions {
 }
 
 /** Karplus–Strong plucked string. */
-export function pluck({ freq = 196, decayS = 2, amp = 0.5, lengthMs = 600, seed = 1 }: PluckOptions = {}) {
+export function pluck({
+  freq = 196,
+  decayS = 2,
+  amp = 0.5,
+  lengthMs = 600,
+  seed = 1,
+}: PluckOptions = {}) {
   const n = msToSamples(lengthMs);
   const out = new Float32Array(n);
   const period = Math.max(2, Math.round(SR / freq));
@@ -86,6 +92,8 @@ export interface TrainOptions {
   /** Linear tempo change over the train: final BPM = bpm + driftBpm. */
   driftBpm?: number;
   pluck?: PluckOptions;
+  /** Strum a chord at each onset instead of a single note: frequencies of its strings (Hz). */
+  chord?: number[];
   seed?: number;
 }
 
@@ -108,9 +116,20 @@ export function onsetTrain(opts: TrainOptions): { samples: Float32Array; onsetsM
   const totalMs = (onsetsMs[onsetsMs.length - 1] ?? startMs) + 1500;
   const samples = silence(totalMs);
   const freqs = [196, 247, 294, 330];
-  onsetsMs.forEach((o, i) =>
-    mixAt(samples, pluck({ freq: freqs[i % freqs.length], seed: seed + i, ...opts.pluck }), o),
-  );
+  onsetsMs.forEach((o, i) => {
+    if (opts.chord) {
+      // A strum: the strings 8 ms apart, each a little quieter.
+      opts.chord.forEach((f, k) =>
+        mixAt(
+          samples,
+          pluck({ freq: f, amp: 0.25, seed: seed + i * 7 + k, ...opts.pluck }),
+          o + k * 8,
+        ),
+      );
+    } else {
+      mixAt(samples, pluck({ freq: freqs[i % freqs.length], seed: seed + i, ...opts.pluck }), o);
+    }
+  });
   return { samples, onsetsMs };
 }
 
@@ -153,7 +172,12 @@ export function normaliseRms(x: Float32Array, rms: number): Float32Array {
 }
 
 /** Add noise to a signal at a given signal-to-noise ratio (dB). */
-export function addNoise(signal: Float32Array, snrDb: number, kind: 'white' | 'pink' = 'white', seed = 5) {
+export function addNoise(
+  signal: Float32Array,
+  snrDb: number,
+  kind: 'white' | 'pink' = 'white',
+  seed = 5,
+) {
   const ms = (signal.length / SR) * 1000;
   const noiseRms = rmsOf(signal) / Math.pow(10, snrDb / 20);
   const noise = kind === 'white' ? whiteNoise(ms, noiseRms, seed) : pinkNoise(ms, noiseRms, seed);
@@ -196,7 +220,8 @@ export function speechLike(durationMs: number, rms = 0.1, seed = 13): Float32Arr
   for (let i = 0; i < pink.length; i++) {
     lp = a * lp + (1 - a) * pink[i]!;
     const tS = i / SR;
-    const env = 0.5 * (1 - Math.cos(2 * Math.PI * 4 * tS)) * (0.7 + 0.3 * Math.sin(2 * Math.PI * 0.7 * tS));
+    const env =
+      0.5 * (1 - Math.cos(2 * Math.PI * 4 * tS)) * (0.7 + 0.3 * Math.sin(2 * Math.PI * 0.7 * tS));
     out[i] = lp * env;
   }
   return normaliseRms(out, rms);

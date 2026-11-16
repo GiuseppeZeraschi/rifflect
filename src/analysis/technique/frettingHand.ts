@@ -32,7 +32,9 @@ export function analyseFretting(tracks: HandTracks): Finding[] {
   const out: Finding[] = [];
 
   // Fingertip positions along the hand axis, per finger (for lift and shape stability).
-  const tipAlong = FINGERS.map(([mcp, , , tip]) => visible.map(({ pts }) => alongHand(pts, pts[tip]!, pts[mcp]!)));
+  const tipAlong = FINGERS.map(([mcp, , , tip]) =>
+    visible.map(({ pts }) => alongHand(pts, pts[tip]!, pts[mcp]!)),
+  );
   const tipRange = tipAlong.map((v) => percentile(v, 95) - percentile(v, 5));
   const stableShape = Math.max(...tipRange) < 0.12;
 
@@ -49,13 +51,19 @@ export function analyseFretting(tracks: HandTracks): Finding[] {
       confidence: conf,
       startMs: Math.round(first),
       endMs: Math.round(last),
-      metrics: { fractionPct: Math.round(overFraction * 100), chordLike: stableShape ? 'yes' : 'no' },
+      metrics: {
+        fractionPct: Math.round(overFraction * 100),
+        chordLike: stableShape ? 'yes' : 'no',
+      },
     });
   }
 
   // Flat fingers: mean PIP angle close to straight.
-  const pipMeans = visible.map(({ pts }) => mean(FINGERS.map(([m, p, d]) => angleAt(pts[m]!, pts[p]!, pts[d]!))));
-  const flatFraction = pipMeans.filter((a) => a > TECHNIQUE.flatFingerPipDeg).length / visible.length;
+  const pipMeans = visible.map(({ pts }) =>
+    mean(FINGERS.map(([m, p, d]) => angleAt(pts[m]!, pts[p]!, pts[d]!))),
+  );
+  const flatFraction =
+    pipMeans.filter((a) => a > TECHNIQUE.flatFingerPipDeg).length / visible.length;
   if (flatFraction >= 0.5) {
     out.push({
       category: 'technique',
@@ -65,7 +73,10 @@ export function analyseFretting(tracks: HandTracks): Finding[] {
       confidence: conf,
       startMs: Math.round(first),
       endMs: Math.round(last),
-      metrics: { fractionPct: Math.round(flatFraction * 100), meanPipDeg: Math.round(mean(pipMeans)) },
+      metrics: {
+        fractionPct: Math.round(flatFraction * 100),
+        meanPipDeg: Math.round(mean(pipMeans)),
+      },
     });
   }
 
@@ -90,7 +101,9 @@ export function analyseFretting(tracks: HandTracks): Finding[] {
     const pts = tracks.fretting[i];
     return !!pts && Math.abs(handAngleDeg(pts)) > TECHNIQUE.wristExtremeDeg;
   };
-  const held = rangesWhere(tracks.tMs, tracks.frameMs, extreme).filter(([a, b]) => b - a > TECHNIQUE.wristStrainHoldMs);
+  const held = rangesWhere(tracks.tMs, tracks.frameMs, extreme).filter(
+    ([a, b]) => b - a > TECHNIQUE.wristStrainHoldMs,
+  );
   if (held.length > 0) {
     const longest = held.reduce((x, y) => (y[1] - y[0] > x[1] - x[0] ? y : x));
     out.push({
@@ -101,7 +114,10 @@ export function analyseFretting(tracks: HandTracks): Finding[] {
       confidence: Math.min(conf, 0.75),
       startMs: Math.round(longest[0]),
       endMs: Math.round(longest[1]),
-      metrics: { heldSeconds: Math.round((longest[1] - longest[0]) / 1000), occurrences: held.length },
+      metrics: {
+        heldSeconds: Math.round((longest[1] - longest[0]) / 1000),
+        occurrences: held.length,
+      },
     });
   }
   return out;

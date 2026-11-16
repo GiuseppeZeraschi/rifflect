@@ -6,7 +6,7 @@
  * look like plucks: energy jumps within ~15 ms, then the signal is strongly periodic at a pitch
  * in the guitar range (80 Hz – 1 kHz).
  */
-import { AUDIO, ONSETS } from './config/thresholds';
+import { AUDIO, ONSETS, TECHNIQUE } from './config/thresholds';
 
 const SR = AUDIO.sampleRate;
 const toS = (ms: number) => Math.round((ms / 1000) * SR);
@@ -61,7 +61,11 @@ export function isPluckLike(samples: Float32Array, onsetMs: number): boolean {
 }
 
 /** Number of pluck-like onsets, stopping early once `enough` are found. */
-export function countPluckLike(samples: Float32Array, onsetsMs: number[], enough = Infinity): number {
+export function countPluckLike(
+  samples: Float32Array,
+  onsetsMs: number[],
+  enough = Infinity,
+): number {
   let n = 0;
   for (const t of onsetsMs) {
     if (isPluckLike(samples, t) && ++n >= enough) break;
@@ -86,4 +90,17 @@ export function dropHandlingNoise(samples: Float32Array, onsetsMs: number[]): nu
     const atEdge = t < ONSETS.handlingEdgeMs || t > endMs - ONSETS.handlingEdgeMs;
     return !atEdge || periodicity(samples, t + 30, t + 130) >= ONSETS.handlingMaxPeriodicity;
   });
+}
+
+/**
+ * Share of notes that are chords rather than single notes. A single note repeats at one clear period
+ * (periodicity ≥ 0.97 on synthetic notes, 0.8–0.98 on real electric-guitar lead); a chord mixes
+ * periods that don't line up (0.44–0.60, from power chords to six-string shapes).
+ */
+export function chordShare(samples: Float32Array, onsetsMs: number[]): number {
+  if (onsetsMs.length === 0) return 0;
+  const chords = onsetsMs.filter(
+    (t) => periodicity(samples, t + 30, t + 130) < TECHNIQUE.chordMaxPeriodicity,
+  ).length;
+  return chords / onsetsMs.length;
 }

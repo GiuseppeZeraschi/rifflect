@@ -39,7 +39,12 @@ export interface RecoveryResult {
   requeued: number;
 }
 
-export async function runRecovery({ db, files, probe, now = Date.now }: RecoveryDeps): Promise<RecoveryResult> {
+export async function runRecovery({
+  db,
+  files,
+  probe,
+  now = Date.now,
+}: RecoveryDeps): Promise<RecoveryResult> {
   let lostCount = 0;
 
   // 1. Crashed recordings.
@@ -64,9 +69,16 @@ export async function runRecovery({ db, files, probe, now = Date.now }: Recovery
   }
 
   // 2. Analyses interrupted by the app closing.
-  const running = db.select({ id: take.id }).from(take).where(eq(take.analysisStatus, 'analysing')).all();
+  const running = db
+    .select({ id: take.id })
+    .from(take)
+    .where(eq(take.analysisStatus, 'analysing'))
+    .all();
   if (running.length > 0) {
-    db.update(take).set({ analysisStatus: 'pending', updatedAt: nowIso() }).where(eq(take.analysisStatus, 'analysing')).run();
+    db.update(take)
+      .set({ analysisStatus: 'pending', updatedAt: nowIso() })
+      .where(eq(take.analysisStatus, 'analysing'))
+      .run();
   }
 
   // 3. Expired drafts.
@@ -88,5 +100,10 @@ export async function runRecovery({ db, files, probe, now = Date.now }: Recovery
     .all()
     .map((r) => r.id);
 
-  return { interruptedDraftIds, lostCount, deletedDrafts: expired.length, requeued: running.length };
+  return {
+    interruptedDraftIds,
+    lostCount,
+    deletedDrafts: expired.length,
+    requeued: running.length,
+  };
 }
