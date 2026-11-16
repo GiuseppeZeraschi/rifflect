@@ -62,7 +62,10 @@ export function analyseAccompanied({
   let liveShare = 1;
   let grid: AccompanimentGrid | null = null;
   let residualOnsets: number[];
-  let unison: { ranges: [number, number][]; unisonOnsets: Set<number> } = { ranges: [], unisonOnsets: new Set() };
+  let unison: { ranges: [number, number][]; unisonOnsets: Set<number> } = {
+    ranges: [],
+    unisonOnsets: new Set(),
+  };
   let repeatingSignal: Float32Array | null = null;
   let accOnsetsMs: number[] = [];
 
@@ -70,7 +73,8 @@ export function analyseAccompanied({
     const sep = separateLoop(samples, mixOnsets.spec, detection.loopLengthMs);
     liveSignal = sep.residual;
     liveShare = sep.liveShare;
-    for (const [a, b] of sep.changedRanges) limitations.push(limitation('accompaniment_changed', a, b));
+    for (const [a, b] of sep.changedRanges)
+      limitations.push(limitation('accompaniment_changed', a, b));
     const repeating = Float32Array.from(samples, (v, i) => v - sep.residual[i]!);
     repeatingSignal = repeating;
     const accOnsets = detectOnsets(repeating, dsp);
@@ -91,11 +95,23 @@ export function analyseAccompanied({
 
   if (grid && beatsPerBar) grid = { ...grid, beatsPerBar };
 
-  const att = attributeOnsets({ residualOnsetsMs: residualOnsets, residual: liveSignal, mix: samples, liveShare, tracks });
+  const att = attributeOnsets({
+    residualOnsetsMs: residualOnsets,
+    residual: liveSignal,
+    mix: samples,
+    liveShare,
+    tracks,
+  });
   // Backing tracks can't be better than "partial": nothing was actually subtracted.
-  const separation = kind === 'backing' && att.separation === 'good' ? 'partial' : kind === 'click' ? 'good' : att.separation;
+  const separation =
+    kind === 'backing' && att.separation === 'good'
+      ? 'partial'
+      : kind === 'click'
+        ? 'good'
+        : att.separation;
 
-  const finalKind: Exclude<AccompanimentKind, 'none'> = kind === 'loop' && !detection.loopLengthMs ? 'backing' : kind;
+  const finalKind: Exclude<AccompanimentKind, 'none'> =
+    kind === 'loop' && !detection.loopLengthMs ? 'backing' : kind;
   const accompaniment: AnalysisResult['accompaniment'] = {
     kind: finalKind,
     loopLengthMs: finalKind === 'loop' ? Math.round(detection.loopLengthMs!) : null,
@@ -112,19 +128,35 @@ export function analyseAccompanied({
     // picking hand was moving, or there's no hand tracking to tell.
     const mayHavePlayed = !tracks || att.strokeCount >= 4;
     if (mayHavePlayed && att.tooLoud) limitations.push(limitation('accompaniment_too_loud'));
-    if (mayHavePlayed && separation === 'poor') limitations.push(limitation('accompaniment_separation_low'));
-    return { status: 'no_playing', liveSignal, liveOnsetsMs: [], liveConfidence: [], grid, timingFindings: [], tempo: emptyTempo, accompaniment, limitations, suppressClarity: true, clarityContext: { kind: 'backing' } };
+    if (mayHavePlayed && separation === 'poor')
+      limitations.push(limitation('accompaniment_separation_low'));
+    return {
+      status: 'no_playing',
+      liveSignal,
+      liveOnsetsMs: [],
+      liveConfidence: [],
+      grid,
+      timingFindings: [],
+      tempo: emptyTempo,
+      accompaniment,
+      limitations,
+      suppressClarity: true,
+      clarityContext: { kind: 'backing' },
+    };
   }
 
   if (att.tooLoud) limitations.push(limitation('accompaniment_too_loud'));
   if (repeatingSignal) unison = findUnison(live, accOnsetsMs, liveSignal, repeatingSignal);
-  for (const [a, b] of unison.ranges) limitations.push(limitation('unison_with_accompaniment', a, b));
+  for (const [a, b] of unison.ranges)
+    limitations.push(limitation('unison_with_accompaniment', a, b));
   const suppressClarity = separation === 'poor';
   if (suppressClarity) limitations.push(limitation('accompaniment_separation_low'));
 
   // Notes in unison with the loop can't be told apart from it, so they don't count for timing.
   const timedOnsets = live.filter((t) => !unison.unisonOnsets.has(t));
-  const timing = grid ? accompanimentTiming(timedOnsets, grid) : { findings: [], meanAbsOffsetMs: null, subdivision: 1 as const };
+  const timing = grid
+    ? accompanimentTiming(timedOnsets, grid)
+    : { findings: [], meanAbsOffsetMs: null, subdivision: 1 as const };
   if (!grid) limitations.push(limitation('tempo_not_detected'));
   const bpm = grid ? 60000 / grid.periodMs : null;
   return {
@@ -144,6 +176,10 @@ export function analyseAccompanied({
     limitations,
     suppressClarity,
     clarityContext:
-      finalKind === 'loop' ? { kind: 'loop', loopMs: detection.loopLengthMs! } : finalKind === 'click' ? { kind: 'click' } : { kind: 'backing' },
+      finalKind === 'loop'
+        ? { kind: 'loop', loopMs: detection.loopLengthMs! }
+        : finalKind === 'click'
+          ? { kind: 'click' }
+          : { kind: 'backing' },
   };
 }

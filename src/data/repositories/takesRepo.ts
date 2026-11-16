@@ -32,6 +32,8 @@ export interface NewTake {
   accompanimentSetting: AccompanimentSetting;
   /** Default 4/4. */
   timeSignature?: TimeSignature;
+  /** The app's metronome tempo, or null/absent if it was off. */
+  metronomeBpm?: number | null;
   /** 30–300 */
   targetTempoBpm?: number | null;
   recordedAt?: string;
@@ -55,6 +57,9 @@ export function createTake(db: Db, input: NewTake): TakeRow {
   }
   const timeSignature = input.timeSignature ?? '4/4';
   if (!TIME_SIGNATURES.includes(timeSignature)) throw new Error(`Invalid time signature: ${String(timeSignature)}`);
+  if (input.metronomeBpm != null && (!Number.isInteger(input.metronomeBpm) || input.metronomeBpm < 30 || input.metronomeBpm > 300)) {
+    throw new Error('Metronome tempo must be a whole number between 30 and 300 BPM');
+  }
   const id = input.id ?? newId();
   const now = nowIso();
   db.insert(take)
@@ -65,6 +70,7 @@ export function createTake(db: Db, input: NewTake): TakeRow {
       targetTempoBpm: input.targetTempoBpm ?? null,
       accompanimentSetting: input.accompanimentSetting,
       timeSignature,
+      metronomeBpm: input.metronomeBpm ?? null,
       handednessAtRecording: profile.handedness,
       skillLevelAtRecording: profile.skillLevel,
       videoPath: relTakePaths(id).video,

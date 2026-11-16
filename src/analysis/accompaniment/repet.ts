@@ -39,11 +39,16 @@ function median(values: Float32Array, n: number): number {
   return n % 2 ? values[n >> 1]! : (values[(n >> 1) - 1]! + values[n >> 1]!) / 2;
 }
 
-export function separateLoop(samples: Float32Array, spec: Spectrogram, loopMs: number): SeparationResult {
+export function separateLoop(
+  samples: Float32Array,
+  spec: Spectrogram,
+  loopMs: number,
+): SeparationResult {
   const { frames, bins, data, windowSize: W, hopSize: H } = spec;
   const loopSamples = (loopMs / 1000) * AUDIO.sampleRate;
   const offsets: number[] = [];
-  for (let j = -CYCLES_EACH_SIDE; j <= CYCLES_EACH_SIDE; j++) offsets.push(Math.round((j * loopSamples) / H));
+  for (let j = -CYCLES_EACH_SIDE; j <= CYCLES_EACH_SIDE; j++)
+    offsets.push(Math.round((j * loopSamples) / H));
 
   // 1–2. Repeating model → per-frame, per-bin live mask.
   const mask = new Float32Array(frames * bins);
@@ -68,7 +73,10 @@ export function separateLoop(samples: Float32Array, spec: Spectrogram, loopMs: n
   // 3. Resynthesis by overlap-add with a Hann synthesis window, normalised by Σ window².
   const residual = new Float32Array(samples.length);
   const norm = new Float32Array(samples.length);
-  const win = Float64Array.from({ length: W }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (W - 1)));
+  const win = Float64Array.from(
+    { length: W },
+    (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (W - 1)),
+  );
   const re = new Float64Array(W);
   const im = new Float64Array(W);
   for (let t = 0; t < frames; t++) {
@@ -93,7 +101,7 @@ export function separateLoop(samples: Float32Array, spec: Spectrogram, loopMs: n
     for (let i = 0; i < W; i++) im[i] = -im[i]!;
     fftInPlace(re, im);
     for (let i = 0; i < W; i++) {
-      residual[off + i]! += ((re[i]! / W) * win[i]!);
+      residual[off + i]! += (re[i]! / W) * win[i]!;
       norm[off + i]! += win[i]! * win[i]!;
     }
   }
@@ -125,7 +133,10 @@ export function separateLoop(samples: Float32Array, spec: Spectrogram, loopMs: n
   const cycleMs = loopMs;
   for (let c = 1; c < shares.length; c++) {
     if (Math.abs(shares[c]! - shares[c - 1]!) > 0.25) {
-      changedRanges.push([Math.round((c - 1) * cycleMs), Math.round(Math.min((c + 1) * cycleMs, (samples.length / AUDIO.sampleRate) * 1000))]);
+      changedRanges.push([
+        Math.round((c - 1) * cycleMs),
+        Math.round(Math.min((c + 1) * cycleMs, (samples.length / AUDIO.sampleRate) * 1000)),
+      ]);
     }
   }
 

@@ -28,6 +28,7 @@ import { db } from '@/data/db/client';
 import type { AccompanimentSetting as Setting, TimeSignature } from '@/data/db/schema';
 import { takeFiles } from '@/data/files';
 import { storageStatus, type StorageStatus } from '@/data/files/storage';
+import { useMetronome } from '@/features/metronome/useMetronome';
 import { useProfile } from '@/features/profile/useProfile';
 import { AccompanimentSetting } from '@/features/record/AccompanimentSetting';
 import { RecordButton } from '@/features/record/RecordButton';
@@ -35,6 +36,7 @@ import { parseTempo } from '@/features/record/tempo';
 import { TempoInput } from '@/features/record/TempoInput';
 import { TimeSignaturePicker } from '@/features/record/TimeSignaturePicker';
 import { Body, Button } from '@/ui/components/controls';
+import { BEATS_PER_BAR } from '@/lib/meter';
 import { fontSize, radius, spacing, usePalette } from '@/ui/theme';
 
 function useRecording() {
@@ -116,6 +118,7 @@ function Recorder() {
     profile?.lastTimeSignature ?? '4/4',
   );
   const [tempoText, setTempoText] = useState('');
+  const [metronomeOn, setMetronomeOn] = useState(profile?.lastMetronomeOn ?? false);
   const [storage, setStorage] = useState<StorageStatus | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
@@ -126,6 +129,7 @@ function Recorder() {
       loadedSetting.current = true;
       setAccompaniment(profile.lastAccompanimentSetting ?? 'auto');
       setTimeSignature(profile.lastTimeSignature ?? '4/4');
+      setMetronomeOn(profile.lastMetronomeOn ?? false);
     }
   }, [profile]);
 
@@ -165,16 +169,24 @@ function Recorder() {
 
   const tempo = parseTempo(tempoText);
   const recording = rec.state !== 'idle';
+  const metronomeBpm = metronomeOn && typeof tempo === 'number' ? tempo : null;
+  // The click plays while the Record tab is open (to get in time before recording) and throughout a take.
+  const metronome = useMetronome({
+    playing: metronomeBpm !== null && ((focused && appActive) || recording),
+    bpm: metronomeBpm,
+    beatsPerBar: BEATS_PER_BAR[timeSignature],
+  });
   const blocked = storage?.cannotRecord ?? false;
 
   const start = async () => {
-    if (tempo === undefined) return;
+    if (tempo === undefined || (metronomeOn && tempo === null)) return;
     try {
       await recordingController.start({
         cameraPosition: position,
         accompanimentSetting: accompaniment,
         timeSignature,
         targetTempoBpm: tempo,
+        metronomeBpm,
       });
     } catch (e) {
       if (e instanceof StorageFullError) setStorage(storageStatus(db, takeFiles));
@@ -258,7 +270,17 @@ function Recorder() {
           <>
             <AccompanimentSetting value={accompaniment} onChange={setAccompaniment} />
             <TimeSignaturePicker value={timeSignature} onChange={setTimeSignature} />
-            <TempoInput value={tempoText} onChange={setTempoText} />
+            <TempoInput
+              value={tempoText}
+              onChange={setTempoText}
+              metronomeOn={metronomeOn}
+              onMetronomeChange={setMetronomeOn}
+            />
+            {metronome.error ? (
+              <Text style={{ color: p.danger, fontSize: fontSize.caption }}>
+                Metronome problem: {metronome.error}
+              </Text>
+            ) : null}
             {landscape ? null : (
               <Text style={{ color: p.textMuted, fontSize: fontSize.caption }}>
                 Frame both hands and the guitar neck. Hand tracking arrives in a later build; for
@@ -268,16 +290,21 @@ function Recorder() {
           </>
         ) : (
           <Text style={{ color: p.textMuted, fontSize: fontSize.body, textAlign: 'center' }}>
-            {accompaniment === 'off'
-              ? 'Recording'
-              : 'Recording – play over your loop or track as usual'}
+            {metronomeBpm !== null
+              ? `Recording with the click at ${metronomeBpm} BPM`
+              : accompaniment === 'off'
+                ? 'Recording'
+                : 'Recording – play over your loop or track as usual'}
           </Text>
         )}
 
         <RecordButton
           state={rec.state}
           startedAt={rec.startedAt}
-          disabled={!recording && (blocked || tempo === undefined || !device)}
+          disabled={
+            !recording &&
+            (blocked || tempo === undefined || (metronomeOn && tempo === null) || !device)
+          }
           onStart={() => void start()}
           onStop={() => void recordingController.stop()}
         />

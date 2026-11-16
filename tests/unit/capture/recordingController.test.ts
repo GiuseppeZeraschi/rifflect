@@ -44,6 +44,7 @@ function setup() {
       upsertProfile(t.db, {
         lastAccompanimentSetting: s.accompanimentSetting,
         lastTimeSignature: s.timeSignature,
+        lastMetronomeOn: s.metronomeOn,
       }),
     now: () => clock,
   });
@@ -58,6 +59,7 @@ const opts = {
   accompanimentSetting: 'on' as const,
   timeSignature: '3/4' as const,
   targetTempoBpm: 90,
+  metronomeBpm: 90,
 };
 
 describe('recording controller', () => {
@@ -76,6 +78,7 @@ describe('recording controller', () => {
     expect(getProfile(t.db)).toMatchObject({
       lastAccompanimentSetting: 'on',
       lastTimeSignature: '3/4',
+      lastMetronomeOn: true,
     });
 
     advance(42_000);

@@ -13,7 +13,10 @@ import type { Range } from '../technique/hands';
 
 const SR = AUDIO.sampleRate;
 const N = 2048;
-const hann = Float64Array.from({ length: N }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1)));
+const hann = Float64Array.from(
+  { length: N },
+  (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1)),
+);
 
 /** Log-magnitude spectrum (80 Hz – 2 kHz) of the window starting at `ms`. */
 function spectrum(x: Float32Array, ms: number): Float64Array | null {

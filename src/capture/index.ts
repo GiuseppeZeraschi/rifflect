@@ -11,6 +11,11 @@ export const recordingController = createRecordingController({
   files: takeFiles,
   createRecorder: createVisionRecorder,
   enqueue: (id) => analysisQueue.enqueue(id),
-  rememberSettings: (s) => upsertProfile(db, { lastAccompanimentSetting: s.accompanimentSetting, lastTimeSignature: s.timeSignature }),
+  rememberSettings: (s) =>
+    upsertProfile(db, {
+      lastAccompanimentSetting: s.accompanimentSetting,
+      lastTimeSignature: s.timeSignature,
+      lastMetronomeOn: s.metronomeOn,
+    }),
   // openLandmarkSink: added with the native hand-landmarker module (tasks.md T020).
 });

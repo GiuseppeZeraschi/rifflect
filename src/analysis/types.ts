@@ -46,6 +46,8 @@ export interface AnalysisInput {
   targetTempoBpm?: number;
   /** Beats per bar from the take's time signature (4/4 → 4, 3/4 → 3, 6/8 → 6). Default 4. */
   beatsPerBar?: number;
+  /** The app's metronome played at this tempo during the take (its clicks are in the audio). */
+  metronomeBpm?: number;
   /** FR-024 */
   accompaniment: AccompanimentSetting;
   /**

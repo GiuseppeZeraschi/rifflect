@@ -162,7 +162,10 @@ export function highFrequencyTransients(samples: Float32Array): number[] {
 }
 
 const SEG = 512; // ~23 ms
-const segWindow = Float64Array.from({ length: SEG }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (SEG - 1)));
+const segWindow = Float64Array.from(
+  { length: SEG },
+  (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (SEG - 1)),
+);
 
 /**
  * Share of a ~23 ms segment's energy in the guitar's range (80 Hz – 2.5 kHz), from an FFT.
@@ -213,7 +216,15 @@ function repeatingTemplateIsClick(samples: Float32Array, times: number[]): boole
   return guitarBandShare(tmpl, (32 / SR) * 1000) < ACCOMPANIMENT.clickMaxGuitarShare;
 }
 
-export function detectClick(samples: Float32Array): { periodMs: number; strength: number; times: number[] } | null {
+/**
+ * Find a click track. With `expectedPeriodMs` (the app's own metronome was on) the period is known,
+ * so only clicks near it are looked for and the click-vs-looped-strum template test is skipped: that
+ * test averages the sound at every click, and notes played right on the click would dominate it.
+ */
+export function detectClick(
+  samples: Float32Array,
+  expectedPeriodMs?: number,
+): { periodMs: number; strength: number; times: number[] } | null {
   const times = highFrequencyTransients(samples);
   if (times.length < 10) return null;
   // Candidate period: the most common gap between transients up to 3 apart (1 ms bins, 250–1500 ms).
@@ -221,7 +232,11 @@ export function detectClick(samples: Float32Array): { periodMs: number; strength
   for (let i = 0; i < times.length; i++) {
     for (let j = i + 1; j < Math.min(times.length, i + 4); j++) {
       const gap = Math.round(times[j]! - times[i]!);
-      if (gap >= 250 && gap <= 1500) hist.set(gap, (hist.get(gap) ?? 0) + 1);
+      const near =
+        expectedPeriodMs === undefined
+          ? gap >= 250 && gap <= 1500
+          : Math.abs(gap - expectedPeriodMs) <= 0.02 * expectedPeriodMs;
+      if (near) hist.set(gap, (hist.get(gap) ?? 0) + 1);
     }
   }
   let period = 0,
@@ -242,7 +257,8 @@ export function detectClick(samples: Float32Array): { periodMs: number; strength
     for (let k = s + 1; k < times.length; k++) {
       const gap = times[k]! - last;
       const beats = Math.round(gap / period);
-      if (beats >= 1 && beats <= 4 && Math.abs(gap - beats * period) <= 3) {
+      const tol = expectedPeriodMs === undefined ? 3 : 8;
+      if (beats >= 1 && beats <= 4 && Math.abs(gap - beats * period) <= tol) {
         run.push(times[k]!);
         last = times[k]!;
       } else if (gap > 4 * period + 3) break;
@@ -262,10 +278,18 @@ export function detectClick(samples: Float32Array): { periodMs: number; strength
     den += (ks[i]! - mk) ** 2;
   }
   const mean = den > 0 ? num / den : period;
-  const sd = Math.sqrt(bestRun.reduce((a, t, i) => a + (t - (mt + mean * (ks[i]! - mk))) ** 2, 0) / n);
-  if (sd > ACCOMPANIMENT.clickMaxJitterMs) return null;
+  const sd = Math.sqrt(
+    bestRun.reduce((a, t, i) => a + (t - (mt + mean * (ks[i]! - mk))) ** 2, 0) / n,
+  );
+  // A known metronome may share its exact instant with pick attacks, which nudges where its
+  // transients are found by a few ms; regularity isn't needed to decide it's a click then.
+  const maxJitter =
+    expectedPeriodMs === undefined
+      ? ACCOMPANIMENT.clickMaxJitterMs
+      : ACCOMPANIMENT.metronomeMaxJitterMs;
+  if (sd > maxJitter) return null;
   // Exactly periodic, but is it a click or a looped strum? Look at what repeats.
-  if (!repeatingTemplateIsClick(samples, bestRun)) return null;
+  if (expectedPeriodMs === undefined && !repeatingTemplateIsClick(samples, bestRun)) return null;
   const span = bestRun[bestRun.length - 1]! - bestRun[0]!;
   const durationMs = (samples.length / SR) * 1000;
   if (span < 0.5 * durationMs) return null;
@@ -304,18 +328,51 @@ export function noisyHitRate(samples: Float32Array): number {
   return highFrequencyTransients(samples).length / (samples.length / SR);
 }
 
-export function detectAccompaniment(samples: Float32Array): Detection {
-  const none: Detection = { kind: 'none', loopLengthMs: null, clickPeriodMs: null, clickTimesMs: [], strength: 0 };
+/** `metronomeBpm`: the app's metronome was playing at this tempo (a click track is expected). */
+export function detectAccompaniment(
+  samples: Float32Array,
+  opts: { metronomeBpm?: number } = {},
+): Detection {
+  const none: Detection = {
+    kind: 'none',
+    loopLengthMs: null,
+    clickPeriodMs: null,
+    clickTimesMs: [],
+    strength: 0,
+  };
   if (samples.length < SR * 2) return none;
 
-  const click = detectClick(samples);
-  if (click) return { kind: 'click', loopLengthMs: null, clickPeriodMs: click.periodMs, clickTimesMs: click.times, strength: click.strength };
+  const click = detectClick(samples, opts.metronomeBpm ? 60000 / opts.metronomeBpm : undefined);
+  if (click)
+    return {
+      kind: 'click',
+      loopLengthMs: null,
+      clickPeriodMs: click.periodMs,
+      clickTimesMs: click.times,
+      strength: click.strength,
+    };
 
   const loop = detectLoop(samples);
-  if (loop) return { kind: 'loop', loopLengthMs: loop.loopMs, clickPeriodMs: null, clickTimesMs: [], strength: loop.strength };
+  if (loop)
+    return {
+      kind: 'loop',
+      loopLengthMs: loop.loopMs,
+      clickPeriodMs: null,
+      clickTimesMs: [],
+      strength: loop.strength,
+    };
 
-  if (lowBandShare(samples) >= ACCOMPANIMENT.backingMinLowShare && noisyHitRate(samples) >= ACCOMPANIMENT.backingMinHitRate) {
-    return { kind: 'backing', loopLengthMs: null, clickPeriodMs: null, clickTimesMs: [], strength: 0.5 };
+  if (
+    lowBandShare(samples) >= ACCOMPANIMENT.backingMinLowShare &&
+    noisyHitRate(samples) >= ACCOMPANIMENT.backingMinHitRate
+  ) {
+    return {
+      kind: 'backing',
+      loopLengthMs: null,
+      clickPeriodMs: null,
+      clickTimesMs: [],
+      strength: 0.5,
+    };
   }
   return none;
 }

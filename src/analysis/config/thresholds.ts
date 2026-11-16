@@ -7,7 +7,7 @@
  * contracts/analysis-engine.md.
  */
 
-export const ENGINE_VERSION = '1.0.0+t3';
+export const ENGINE_VERSION = '1.1.0';
 
 /** Findings below this confidence are never emitted (contract guarantee 6). */
 export const CONFIDENCE_FLOOR = 0.6;
@@ -149,6 +149,8 @@ export const ACCOMPANIMENT = {
   loopMinCorrelation: 0.12,
   /** A click track repeats with less timing jitter than this (ms, std of the gaps). */
   clickMaxJitterMs: 1,
+  /** … or this, when the app's own metronome was playing (its tempo is known). */
+  metronomeMaxJitterMs: 4,
   /** … and its transients carry less than this share of energy in the guitar range (< 1.5 kHz). */
   clickMaxGuitarShare: 0.3,
   /** Backing: share of energy below this frequency (kick, bass) … */

@@ -17,7 +17,8 @@ export interface AccTimingResult {
 
 const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / Math.max(1, xs.length);
 const round5 = (x: number) => Math.round(x / 5) * 5;
-const sev = (ms: number): Severity => (Math.abs(ms) >= 60 ? 'major' : Math.abs(ms) >= 40 ? 'moderate' : 'minor');
+const sev = (ms: number): Severity =>
+  Math.abs(ms) >= 60 ? 'major' : Math.abs(ms) >= 40 ? 'moderate' : 'minor';
 
 interface Placed {
   t: number;
@@ -36,12 +37,18 @@ function place(onsetsMs: number[], grid: AccompanimentGrid, sub: 1 | 2 | 4): Pla
       t,
       offset,
       bar: Math.floor(beat / grid.beatsPerBar) + 1,
-      beatInBar: nearest % sub === 0 ? (((beat % grid.beatsPerBar) + grid.beatsPerBar) % grid.beatsPerBar) + 1 : null,
+      beatInBar:
+        nearest % sub === 0
+          ? (((beat % grid.beatsPerBar) + grid.beatsPerBar) % grid.beatsPerBar) + 1
+          : null,
     };
   });
 }
 
-export function accompanimentTiming(liveOnsetsMs: number[], grid: AccompanimentGrid): AccTimingResult {
+export function accompanimentTiming(
+  liveOnsetsMs: number[],
+  grid: AccompanimentGrid,
+): AccTimingResult {
   if (liveOnsetsMs.length < 4) return { findings: [], meanAbsOffsetMs: null, subdivision: 1 };
 
   // Coarsest subdivision that explains the notes.
@@ -64,10 +71,15 @@ export function accompanimentTiming(liveOnsetsMs: number[], grid: AccompanimentG
 
   // Lost place: a run of ≥ 6 consecutive notes clearly off the grid, on the same side.
   let runStart = -1;
-  const offGrid = (i: number) => Math.abs(placed[i]!.offset) >= 0.35 * unit && Math.abs(placed[i]!.offset) >= ACCOMPANIMENT.lostPlaceBeats * grid.periodMs * 0.5;
+  const offGrid = (i: number) =>
+    Math.abs(placed[i]!.offset) >= 0.35 * unit &&
+    Math.abs(placed[i]!.offset) >= ACCOMPANIMENT.lostPlaceBeats * grid.periodMs * 0.5;
   const lostIdx = new Set<number>();
   for (let i = 0; i <= n; i++) {
-    const sameSide = i < n && runStart >= 0 && Math.sign(placed[i]!.offset) === Math.sign(placed[runStart]!.offset);
+    const sameSide =
+      i < n &&
+      runStart >= 0 &&
+      Math.sign(placed[i]!.offset) === Math.sign(placed[runStart]!.offset);
     if (i < n && offGrid(i) && (runStart < 0 || sameSide)) {
       if (runStart < 0) runStart = i;
       continue;
@@ -84,7 +96,11 @@ export function accompanimentTiming(liveOnsetsMs: number[], grid: AccompanimentG
         confidence: conf,
         startMs: Math.round(run[0]!.t),
         endMs: Math.round(run[run.length - 1]!.t),
-        metrics: { shiftBeats: Math.max(0.25, Math.round(shift * 4) / 4), barFrom: run[0]!.bar, barTo: run[run.length - 1]!.bar },
+        metrics: {
+          shiftBeats: Math.max(0.25, Math.round(shift * 4) / 4),
+          barFrom: run[0]!.bar,
+          barTo: run[run.length - 1]!.bar,
+        },
       });
     }
     runStart = i < n && offGrid(i) ? i : -1;
@@ -139,13 +155,22 @@ export function accompanimentTiming(liveOnsetsMs: number[], grid: AccompanimentG
         confidence: conf * Math.min(1, 0.6 + runOffsets.length / 10),
         startMs: Math.round(runNotes[0]!.t),
         endMs: Math.round(runNotes[runNotes.length - 1]!.t),
-        metrics: { meanOffsetMs: round5(runMean), count: runOffsets.length, barFrom: bars[i]!, barTo: bars[j]! },
+        metrics: {
+          meanOffsetMs: round5(runMean),
+          count: runOffsets.length,
+          barFrom: bars[i]!,
+          barTo: bars[j]!,
+        },
       });
       i = j + 1;
     }
   }
 
-  if (!out.some((f) => f.issueCode !== 'timing.lost_place_in_loop') && meanAbs <= threshold && !out.length) {
+  if (
+    !out.some((f) => f.issueCode !== 'timing.lost_place_in_loop') &&
+    meanAbs <= threshold &&
+    !out.length
+  ) {
     out.push({
       category: 'timing',
       aspect: 'rhythm',

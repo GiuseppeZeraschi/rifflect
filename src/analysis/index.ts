@@ -88,7 +88,12 @@ export async function analyseTake(input: AnalysisInput, opts?: AnalysisOptions, 
   //    identical to solo analysis (guarantee 8). 'on' with nothing detected is treated as backing.
   let detection: Detection | null = null;
   let kind: AccompanimentKind = 'none';
-  if (input.accompaniment !== 'off') {
+  if (input.metronomeBpm) {
+    // The app's metronome was on: look for its clicks whatever the setting; if they weren't heard
+    // (volume down, headphones), analyse as solo playing.
+    detection = detectAccompaniment(samples, { metronomeBpm: input.metronomeBpm });
+    kind = detection.kind === 'click' ? 'click' : 'none';
+  } else if (input.accompaniment !== 'off') {
     detection = detectAccompaniment(samples);
     kind = detection.kind;
     if (kind === 'none' && input.accompaniment === 'on') kind = 'backing';

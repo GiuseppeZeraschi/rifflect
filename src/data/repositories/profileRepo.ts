@@ -28,6 +28,7 @@ export interface ProfileInput {
   preferredCamera?: CameraPosition;
   lastAccompanimentSetting?: AccompanimentSetting;
   lastTimeSignature?: TimeSignature;
+  lastMetronomeOn?: boolean;
 }
 
 function assertOneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): asserts value is T {

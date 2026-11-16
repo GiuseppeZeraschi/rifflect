@@ -8,7 +8,13 @@
  * landmarksMirrored = true (src/jobs/runAnalysis.ts).
  */
 import { useEffect, useMemo } from 'react';
-import { CommonResolutions, useCameraDevice, useVideoOutput, type CameraVideoOutput, type Constraint } from 'react-native-vision-camera';
+import {
+  CommonResolutions,
+  useCameraDevice,
+  useVideoOutput,
+  type CameraVideoOutput,
+  type Constraint,
+} from 'react-native-vision-camera';
 
 import type { CameraPosition } from '@/data/db/schema';
 import { useProfile } from '@/features/profile/useProfile';
@@ -18,7 +24,10 @@ import type { RecorderHandle } from './recordingController';
 let attachedOutput: CameraVideoOutput | null = null;
 
 /** The recording controller's recorder factory: records with whichever video output is on screen. */
-export async function createVisionRecorder(filePath: string, maxDurationSec: number): Promise<RecorderHandle> {
+export async function createVisionRecorder(
+  filePath: string,
+  maxDurationSec: number,
+): Promise<RecorderHandle> {
   if (!attachedOutput) throw new Error('The camera isn’t ready yet');
   const recorder = await attachedOutput.createRecorder({ filePath, maxDuration: maxDurationSec });
   return {
@@ -31,7 +40,10 @@ export function useCameraSession() {
   const profile = useProfile();
   const position: CameraPosition = profile?.preferredCamera ?? 'front';
   const device = useCameraDevice(position);
-  const videoOutput = useVideoOutput({ targetResolution: CommonResolutions.FHD_16_9, enableAudio: true });
+  const videoOutput = useVideoOutput({
+    targetResolution: CommonResolutions.FHD_16_9,
+    enableAudio: true,
+  });
   const constraints = useMemo<Constraint[]>(() => [{ fps: RECORD_FPS }], []);
 
   useEffect(() => {

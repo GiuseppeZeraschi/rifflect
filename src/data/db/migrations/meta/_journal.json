@@ -15,6 +15,13 @@
       "when": 1794574600562,
       "tag": "0001_time_signature",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794823364184,
+      "tag": "0002_metronome",
+      "breakpoints": true
     }
   ]
 }

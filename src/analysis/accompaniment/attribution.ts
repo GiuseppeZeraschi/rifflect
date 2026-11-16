@@ -55,7 +55,8 @@ export function attributeOnsets({
   let matched = 0;
   for (const t of residualOnsetsMs) {
     const ratio = energy(residual, t, t + 50) / (energy(mix, t, t + 50) || 1e-12);
-    const hit = haveStrokes && strokes.some((s) => Math.abs(s.tMs - t) <= ACCOMPANIMENT.strokeMatchMs);
+    const hit =
+      haveStrokes && strokes.some((s) => Math.abs(s.tMs - t) <= ACCOMPANIMENT.strokeMatchMs);
     let c: number;
     if (hit) {
       c = 0.9;
@@ -77,7 +78,11 @@ export function attributeOnsets({
   const tooLoud = liveShare < ACCOMPANIMENT.tooLoudShare;
   let separation: SeparationConfidence;
   if (liveShare >= ACCOMPANIMENT.goodShare && (matchRate ?? 0) >= 0.6) separation = 'good';
-  else if (liveShare >= ACCOMPANIMENT.partialShare || (liveShare >= ACCOMPANIMENT.tooLoudShare * 0.66 && (matchRate ?? 0) >= 0.5)) separation = 'partial';
+  else if (
+    liveShare >= ACCOMPANIMENT.partialShare ||
+    (liveShare >= ACCOMPANIMENT.tooLoudShare * 0.66 && (matchRate ?? 0) >= 0.5)
+  )
+    separation = 'partial';
   else separation = 'poor';
 
   return { onsetsMs, confidence, matchRate, separation, tooLoud, strokeCount: strokes.length };

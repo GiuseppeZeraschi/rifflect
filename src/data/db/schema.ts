@@ -73,6 +73,8 @@ export const playerProfile = sqliteTable(
       .default('auto'),
     /** Added in migration 0001 without a CHECK (that would rebuild the table); validated in profileRepo. */
     lastTimeSignature: text('last_time_signature', { enum: TIME_SIGNATURES }).notNull().default('4/4'),
+    /** Metronome switched on last time (migration 0002). */
+    lastMetronomeOn: integer('last_metronome_on', { mode: 'boolean' }).notNull().default(false),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
@@ -123,6 +125,8 @@ export const take = sqliteTable(
       .default('auto'),
     /** Added in migration 0001 without a CHECK (that would rebuild the table); validated in takesRepo. */
     timeSignature: text('time_signature', { enum: TIME_SIGNATURES }).notNull().default('4/4'),
+    /** The app's metronome tempo during the take, or null if it was off (migration 0002; 30–300, validated in takesRepo). */
+    metronomeBpm: integer('metronome_bpm'),
     handednessAtRecording: text('handedness_at_recording', { enum: HANDEDNESS }).notNull(),
     skillLevelAtRecording: text('skill_level_at_recording', { enum: SKILL_LEVELS }).notNull(),
     /** relative to the documents directory */

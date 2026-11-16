@@ -51,6 +51,7 @@ export interface RecordingDeps {
   rememberSettings(s: {
     accompanimentSetting: AccompanimentSetting;
     timeSignature: TimeSignature;
+    metronomeOn: boolean;
   }): void;
   openLandmarkSink?: (takeId: string) => LandmarkSink | null;
   now?: () => number;
@@ -61,6 +62,8 @@ export interface StartOptions {
   accompanimentSetting: AccompanimentSetting;
   timeSignature: TimeSignature;
   targetTempoBpm: number | null;
+  /** The metronome's tempo if it is playing, else null. */
+  metronomeBpm: number | null;
 }
 
 export interface FinishedTake {
@@ -184,6 +187,7 @@ export function createRecordingController(deps: RecordingDeps) {
         deps.rememberSettings({
           accompanimentSetting: opts.accompanimentSetting,
           timeSignature: opts.timeSignature,
+          metronomeOn: opts.metronomeBpm !== null,
         });
         const row = createTake(deps.db, opts);
         takeId = row.id;

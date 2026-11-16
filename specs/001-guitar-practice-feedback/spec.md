@@ -109,7 +109,8 @@ A guitarist records a rhythm part into a loop pedal (or starts a backing track, 
 
 - **FR-001**: Users MUST be able to record a practice take using the phone's camera and microphone together.
 - **FR-002**: System MUST show a live camera preview with framing guidance before and during recording so the user can position the phone to see both hands, with the fretting hand fully in frame.
-- **FR-003**: Users MUST be able to optionally enter a target tempo (in BPM) before recording. The app plays no sound during recording (no metronome or count-in).
+- **FR-003**: Users MUST be able to optionally enter a target tempo (in BPM) before recording, and the time signature (4/4, 3/4 or 6/8, default 4/4) used for beat and bar numbers in feedback.
+- **FR-003a**: Users MUST be able to switch on an optional metronome that clicks at the entered tempo, accenting beat 1 of each bar, through the phone speaker. It plays while the Record screen is open and throughout the take, and is remembered for next time. When it was on, timing MUST be measured against the clicks as recorded, even for notes played exactly on a click, and the clicks MUST NOT be reported as the player's notes. If the clicks weren't heard (volume down, headphones), the take is analysed as solo playing.
 - **FR-004**: System MUST support takes between 5 seconds and 5 minutes long.
 - **FR-005**: System MUST let users set their handedness (left or right) and skill level (beginner, intermediate, advanced) once, and use them for all analysis.
 
@@ -196,7 +197,7 @@ These are not measured by the app or required for v1 acceptance; the app collect
 - No user account is required in v1; all takes, feedback and progress live on the phone. Cloud backup and syncing between devices are out of scope for v1.
 - Recordings and feedback are personal data belonging to the user; they are never shared with anyone unless the user explicitly exports or shares them.
 - Feedback is in English for v1.
-- The app has no built-in metronome, count-in or backing tracks in v1, and plays no sound while recording. Timing is judged against the accompaniment's beat when the user plays over one, otherwise against the player's own detected beat.
+- The app has an optional built-in metronome (FR-003a) but no count-in or backing tracks in v1; with the metronome off it plays no sound while recording. Timing is judged against the accompaniment's beat when the user plays over one, otherwise against the player's own detected beat.
 - Feedback is about timing and technique, not about which notes are correct for a specific song; checking against sheet music or tabs is out of scope for v1.
 - v1 is for personal use by its owner: an Android app installed directly on one phone (Nothing Phone (4a)), not published on any app store. iPhone support and store release are possible later and should not be designed out, but are out of scope for v1.
 - Because takes exist only on the phone, the owner is responsible for backups (FR-031). Updating the app must never delete existing takes.
