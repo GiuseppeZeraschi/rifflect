@@ -7,10 +7,12 @@ import {
   feedbackReport,
   practiceItem,
   take,
+  TIME_SIGNATURES,
   type AccompanimentSetting,
   type AnalysisStatus,
   type CameraPosition,
   type TakeRow,
+  type TimeSignature,
 } from '@/data/db/schema';
 import type { Db } from '@/data/db/types';
 import { relTakePaths } from '@/data/files/takePaths';
@@ -28,6 +30,8 @@ export interface NewTake {
   id?: string;
   cameraPosition: CameraPosition;
   accompanimentSetting: AccompanimentSetting;
+  /** Default 4/4. */
+  timeSignature?: TimeSignature;
   /** 30–300 */
   targetTempoBpm?: number | null;
   recordedAt?: string;
@@ -49,6 +53,8 @@ export function createTake(db: Db, input: NewTake): TakeRow {
   if (input.targetTempoBpm != null && (input.targetTempoBpm < 30 || input.targetTempoBpm > 300)) {
     throw new Error('Target tempo must be between 30 and 300 BPM');
   }
+  const timeSignature = input.timeSignature ?? '4/4';
+  if (!TIME_SIGNATURES.includes(timeSignature)) throw new Error(`Invalid time signature: ${String(timeSignature)}`);
   const id = input.id ?? newId();
   const now = nowIso();
   db.insert(take)
@@ -58,6 +64,7 @@ export function createTake(db: Db, input: NewTake): TakeRow {
       cameraPosition: input.cameraPosition,
       targetTempoBpm: input.targetTempoBpm ?? null,
       accompanimentSetting: input.accompanimentSetting,
+      timeSignature,
       handednessAtRecording: profile.handedness,
       skillLevelAtRecording: profile.skillLevel,
       videoPath: relTakePaths(id).video,

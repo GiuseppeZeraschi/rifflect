@@ -13,7 +13,7 @@ export interface TimingAnalysis {
   findings: Finding[];
 }
 
-export function analyseTimingFromOnsets(onsets: OnsetResult, opts: { targetTempoBpm?: number }, dsp: Dsp = defaultDsp): TimingAnalysis {
+export function analyseTimingFromOnsets(onsets: OnsetResult, opts: { targetTempoBpm?: number; beatsPerBar?: number }, dsp: Dsp = defaultDsp): TimingAnalysis {
   const empty: TimingAnalysis = {
     onsets,
     grid: null,
@@ -22,7 +22,7 @@ export function analyseTimingFromOnsets(onsets: OnsetResult, opts: { targetTempo
   };
   const period = estimateBeatPeriodMs(onsets.envelope, onsets.envelopeRate, opts.targetTempoBpm, dsp);
   if (period === null) return empty;
-  const grid = fitBeatGrid(onsets.onsetsMs, period);
+  const grid = fitBeatGrid(onsets.onsetsMs, period, opts.beatsPerBar);
   if (!grid) return empty;
   const m = timingMetrics(grid);
   return {
@@ -38,6 +38,6 @@ export function analyseTimingFromOnsets(onsets: OnsetResult, opts: { targetTempo
   };
 }
 
-export function analyseTiming(samples: Float32Array, opts: { targetTempoBpm?: number }, dsp: Dsp = defaultDsp): TimingAnalysis {
+export function analyseTiming(samples: Float32Array, opts: { targetTempoBpm?: number; beatsPerBar?: number }, dsp: Dsp = defaultDsp): TimingAnalysis {
   return analyseTimingFromOnsets(detectOnsets(samples, dsp), opts, dsp);
 }

@@ -118,7 +118,7 @@ export async function analyseTake(input: AnalysisInput, opts?: AnalysisOptions, 
       opts?.onProgress?.(1);
       return emptyResult(input, []);
     }
-    const timing = analyseTimingFromOnsets(onsets, { targetTempoBpm: input.targetTempoBpm }, dsp);
+    const timing = analyseTimingFromOnsets(onsets, { targetTempoBpm: input.targetTempoBpm, beatsPerBar: input.beatsPerBar }, dsp);
     timingFindings = timing.findings;
     tempo = timing.tempo;
     timingGridOk = !!timing.grid;
@@ -129,7 +129,7 @@ export async function analyseTake(input: AnalysisInput, opts?: AnalysisOptions, 
     const tracks = input.landmarks?.length
       ? assignHands(input.landmarks, { handedness: input.player.handedness, mirrored: input.landmarksMirrored ?? false })
       : null;
-    const acc = analyseAccompanied({ samples, mixOnsets: onsets, detection: detection!, kind, tracks, targetTempoBpm: input.targetTempoBpm, dsp });
+    const acc = analyseAccompanied({ samples, mixOnsets: onsets, detection: detection!, kind, tracks, targetTempoBpm: input.targetTempoBpm, beatsPerBar: input.beatsPerBar, dsp });
     if (acc.status === 'no_playing') {
       opts?.onProgress?.(1);
       return { ...emptyResult(input, acc.limitations), accompaniment: acc.accompaniment };

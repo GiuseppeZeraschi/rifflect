@@ -25,7 +25,7 @@ import { recordingController } from '@/capture';
 import { useCameraSession } from '@/capture/cameraSession';
 import { StorageFullError } from '@/capture/recordingController';
 import { db } from '@/data/db/client';
-import type { AccompanimentSetting as Setting } from '@/data/db/schema';
+import type { AccompanimentSetting as Setting, TimeSignature } from '@/data/db/schema';
 import { takeFiles } from '@/data/files';
 import { storageStatus, type StorageStatus } from '@/data/files/storage';
 import { useProfile } from '@/features/profile/useProfile';
@@ -33,6 +33,7 @@ import { AccompanimentSetting } from '@/features/record/AccompanimentSetting';
 import { RecordButton } from '@/features/record/RecordButton';
 import { parseTempo } from '@/features/record/tempo';
 import { TempoInput } from '@/features/record/TempoInput';
+import { TimeSignaturePicker } from '@/features/record/TimeSignaturePicker';
 import { Body, Button } from '@/ui/components/controls';
 import { fontSize, radius, spacing, usePalette } from '@/ui/theme';
 
@@ -111,6 +112,9 @@ function Recorder() {
   const [accompaniment, setAccompaniment] = useState<Setting>(
     profile?.lastAccompanimentSetting ?? 'auto',
   );
+  const [timeSignature, setTimeSignature] = useState<TimeSignature>(
+    profile?.lastTimeSignature ?? '4/4',
+  );
   const [tempoText, setTempoText] = useState('');
   const [storage, setStorage] = useState<StorageStatus | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -121,6 +125,7 @@ function Recorder() {
     if (!loadedSetting.current && profile) {
       loadedSetting.current = true;
       setAccompaniment(profile.lastAccompanimentSetting ?? 'auto');
+      setTimeSignature(profile.lastTimeSignature ?? '4/4');
     }
   }, [profile]);
 
@@ -168,6 +173,7 @@ function Recorder() {
       await recordingController.start({
         cameraPosition: position,
         accompanimentSetting: accompaniment,
+        timeSignature,
         targetTempoBpm: tempo,
       });
     } catch (e) {
@@ -251,6 +257,7 @@ function Recorder() {
         {!recording ? (
           <>
             <AccompanimentSetting value={accompaniment} onChange={setAccompaniment} />
+            <TimeSignaturePicker value={timeSignature} onChange={setTimeSignature} />
             <TempoInput value={tempoText} onChange={setTempoText} />
             {landscape ? null : (
               <Text style={{ color: p.textMuted, fontSize: fontSize.caption }}>

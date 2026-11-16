@@ -9,11 +9,13 @@ import {
   HANDEDNESS,
   playerProfile,
   SKILL_LEVELS,
+  TIME_SIGNATURES,
   type AccompanimentSetting,
   type CameraPosition,
   type Handedness,
   type PlayerProfileRow,
   type SkillLevel,
+  type TimeSignature,
 } from '@/data/db/schema';
 import type { Db } from '@/data/db/types';
 import { nowIso } from '@/lib/time';
@@ -25,6 +27,7 @@ export interface ProfileInput {
   skillLevel: SkillLevel;
   preferredCamera?: CameraPosition;
   lastAccompanimentSetting?: AccompanimentSetting;
+  lastTimeSignature?: TimeSignature;
 }
 
 function assertOneOf<T extends string>(value: unknown, allowed: readonly T[], field: string): asserts value is T {
@@ -43,6 +46,7 @@ export function upsertProfile(db: Db, input: Partial<ProfileInput>): PlayerProfi
   if (input.lastAccompanimentSetting !== undefined) {
     assertOneOf(input.lastAccompanimentSetting, ACCOMPANIMENT_SETTINGS, 'lastAccompanimentSetting');
   }
+  if (input.lastTimeSignature !== undefined) assertOneOf(input.lastTimeSignature, TIME_SIGNATURES, 'lastTimeSignature');
   const now = nowIso();
   const existing = getProfile(db);
   if (!existing) {
@@ -56,6 +60,7 @@ export function upsertProfile(db: Db, input: Partial<ProfileInput>): PlayerProfi
         skillLevel: input.skillLevel,
         preferredCamera: input.preferredCamera ?? 'front',
         lastAccompanimentSetting: input.lastAccompanimentSetting ?? 'auto',
+        lastTimeSignature: input.lastTimeSignature ?? '4/4',
         createdAt: now,
         updatedAt: now,
       })

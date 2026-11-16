@@ -4,7 +4,7 @@
  *   idle → starting → recording → stopping → idle
  *
  * - start: check free space, create the take row and folder, start the recorder on the take's
- *   video path (auto-stops at 5:00), and remember the accompaniment setting.
+ *   video path (auto-stops at 5:00), and remember the accompaniment setting and time signature.
  * - stop: finalise the video, then completeCapture and enqueue analysis unless it's too short.
  * - interrupt (app backgrounded, recorder error): the take is kept as an interrupted take
  *   (markInterrupted) and still analysed when long enough; the user can discard it afterwards.
@@ -12,11 +12,21 @@
  * Native pieces (VisionCamera's Recorder, the landmark writer) are injected, so this is testable
  * in Node.
  */
-import type { AccompanimentSetting, AnalysisStatus, CameraPosition } from '@/data/db/schema';
+import type {
+  AccompanimentSetting,
+  AnalysisStatus,
+  CameraPosition,
+  TimeSignature,
+} from '@/data/db/schema';
 import type { Db } from '@/data/db/types';
 import { storageStatus } from '@/data/files/storage';
 import type { TakeFiles } from '@/data/files/takeFiles';
-import { completeCapture, createTake, deleteTakeRow, markInterrupted } from '@/data/repositories/takesRepo';
+import {
+  completeCapture,
+  createTake,
+  deleteTakeRow,
+  markInterrupted,
+} from '@/data/repositories/takesRepo';
 import { MAX_RECORDING_MS, uriToPath } from './config';
 
 /** The bit of VisionCamera's Recorder the controller needs. */
@@ -37,7 +47,11 @@ export interface RecordingDeps {
   files: TakeFiles;
   createRecorder(filePath: string, maxDurationSec: number): Promise<RecorderHandle>;
   enqueue(takeId: string): void;
-  rememberAccompaniment(setting: AccompanimentSetting): void;
+  /** Remember the Record screen settings for next time (player profile). */
+  rememberSettings(s: {
+    accompanimentSetting: AccompanimentSetting;
+    timeSignature: TimeSignature;
+  }): void;
   openLandmarkSink?: (takeId: string) => LandmarkSink | null;
   now?: () => number;
 }
@@ -45,6 +59,7 @@ export interface RecordingDeps {
 export interface StartOptions {
   cameraPosition: CameraPosition;
   accompanimentSetting: AccompanimentSetting;
+  timeSignature: TimeSignature;
   targetTempoBpm: number | null;
 }
 
@@ -88,7 +103,12 @@ interface Current {
 
 export function createRecordingController(deps: RecordingDeps) {
   const now = deps.now ?? Date.now;
-  let snapshot: RecordingSnapshot = { state: 'idle', takeId: null, startedAt: null, lastFinished: null };
+  let snapshot: RecordingSnapshot = {
+    state: 'idle',
+    takeId: null,
+    startedAt: null,
+    lastFinished: null,
+  };
   let current: Current | null = null;
   const listeners = new Set<(s: RecordingSnapshot) => void>();
 
@@ -119,7 +139,13 @@ export function createRecordingController(deps: RecordingDeps) {
       : completeCapture(deps.db, c.takeId, { durationMs, fileSizeBytes, landmarksPath });
     if (row.analysisStatus === 'pending') deps.enqueue(c.takeId);
 
-    const finished: FinishedTake = { takeId: c.takeId, durationMs: row.durationMs, analysisStatus: row.analysisStatus, interrupted, reachedLimit };
+    const finished: FinishedTake = {
+      takeId: c.takeId,
+      durationMs: row.durationMs,
+      analysisStatus: row.analysisStatus,
+      interrupted,
+      reachedLimit,
+    };
     current = null;
     set({ state: 'idle', takeId: null, startedAt: null, lastFinished: finished });
     c.waiters.forEach((w) => w(finished));
@@ -148,13 +174,17 @@ export function createRecordingController(deps: RecordingDeps) {
 
     /** Start a take. Resolves with its id once the recorder is running. */
     async start(opts: StartOptions): Promise<string> {
-      if (snapshot.state !== 'idle') throw new Error(`Can't start recording while ${snapshot.state}`);
+      if (snapshot.state !== 'idle')
+        throw new Error(`Can't start recording while ${snapshot.state}`);
       if (storageStatus(deps.db, deps.files).cannotRecord) throw new StorageFullError();
       set({ state: 'starting', lastFinished: null });
 
       let takeId: string | null = null;
       try {
-        deps.rememberAccompaniment(opts.accompanimentSetting);
+        deps.rememberSettings({
+          accompanimentSetting: opts.accompanimentSetting,
+          timeSignature: opts.timeSignature,
+        });
         const row = createTake(deps.db, opts);
         takeId = row.id;
         deps.files.ensureTakeDir(row.id);
@@ -169,7 +199,10 @@ export function createRecordingController(deps: RecordingDeps) {
           waiters: [],
         };
         current = c;
-        const recorder = await deps.createRecorder(uriToPath(deps.files.toAbsolute(row.videoPath)), MAX_RECORDING_MS / 1000);
+        const recorder = await deps.createRecorder(
+          uriToPath(deps.files.toAbsolute(row.videoPath)),
+          MAX_RECORDING_MS / 1000,
+        );
         c.recorder = recorder;
         await recorder.start(
           () => settle(c, true),

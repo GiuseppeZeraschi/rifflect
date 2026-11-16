@@ -31,6 +31,7 @@ One row per install. It is created during onboarding and used in every analysis 
 | skillLevel | enum `beginner` \| `intermediate` \| `advanced` | required |
 | preferredCamera | enum `front` \| `back` | default `front` |
 | lastAccompanimentSetting | enum `auto` \| `on` \| `off` | default `auto`. Pre-selects the Record screen's accompaniment setting (FR-024) |
+| lastTimeSignature | enum `4/4` | `3/4` | `6/8` | default `4/4`. Pre-selects the Record screen's time signature. Added in migration 0001 without a CHECK constraint (validated in the repository) |
 | createdAt / updatedAt | text | |
 
 ## PracticeItem (label)
@@ -58,6 +59,7 @@ Deleting an item does not delete its takes. Their `practiceItemId` becomes null,
 | cameraPosition | enum `front` \| `back` | |
 | targetTempoBpm | int? | 30–300, optional goal entered by the user (FR-003), used for comparison only |
 | accompanimentSetting | enum `auto` \| `on` \| `off` | default `auto` (FR-024). Changing it on the feedback screen triggers re-analysis (FR-029) |
+| timeSignature | enum `4/4` | `3/4` | `6/8` | default `4/4`. Sets beats per bar for beat and bar numbers in feedback (6/8 is counted in six eighth-note beats). Added in migration 0001 without a CHECK constraint (validated in the repository) |
 | handednessAtRecording | enum | copy of the profile value, so a later profile change doesn't re-interpret old takes |
 | skillLevelAtRecording | enum | copy, for the same reason |
 | videoPath | text | relative path inside app storage |

@@ -10,7 +10,8 @@
  *    the curve's slope gives local tempo and drift.
  * 3. Subdivision: the coarsest of beat / eighth / sixteenth that explains the onsets.
  *
- * Beat 1 is assumed to be the first onset, in 4/4 (no downbeat reference exists in solo takes).
+ * Beat 1 is assumed to be the first onset (no downbeat reference exists in solo takes); bars hold
+ * the take's beats per bar (default 4).
  */
 import { TEMPO } from '../config/thresholds';
 import { defaultDsp, type Dsp } from '../dsp';
@@ -180,7 +181,7 @@ function fitUnits(onsetsMs: number[], unitMs: number): UnitFit | null {
   return { coeffs: c, ks, residuals, outliers: use.map((u) => !u), meanAbs };
 }
 
-export function fitBeatGrid(onsetsMs: number[], beatPeriodMs: number): BeatGrid | null {
+export function fitBeatGrid(onsetsMs: number[], beatPeriodMs: number, beatsPerBar: number = BEATS_PER_BAR): BeatGrid | null {
   if (onsetsMs.length < 6) return null;
   let chosen: { sub: 1 | 2 | 4; fit: UnitFit } | null = null;
   for (const sub of [1, 2, 4] as const) {
@@ -221,8 +222,8 @@ export function fitBeatGrid(onsetsMs: number[], beatPeriodMs: number): BeatGrid 
         onsetMs,
         k,
         residualMs: fit.residuals[i]!,
-        beatInBar: k % sub === 0 ? (beatIndex % BEATS_PER_BAR) + 1 : null,
-        bar: Math.floor(beatIndex / BEATS_PER_BAR) + 1,
+        beatInBar: k % sub === 0 ? (beatIndex % beatsPerBar) + 1 : null,
+        bar: Math.floor(beatIndex / beatsPerBar) + 1,
         outlier: fit.outliers[i]!,
       };
     }),

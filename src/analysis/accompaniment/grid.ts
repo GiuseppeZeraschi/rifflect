@@ -5,7 +5,7 @@
  *   of beats (its length pins the tempo down very precisely); phase from those onsets.
  * - click: the clicks are the beats.
  * - backing: the same tempo estimate and grid fit as solo playing, on the backing's onsets.
- * Bar 1 starts at the first accompaniment beat, 4/4.
+ * Bar 1 starts at the first accompaniment beat; bars hold 4 beats unless the caller sets beatsPerBar.
  */
 import { BEATS_PER_BAR, estimateBeatPeriodMs, fitBeatGrid } from '../timing/beatGrid';
 import type { OnsetResult } from '../timing/onsets';

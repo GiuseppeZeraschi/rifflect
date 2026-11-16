@@ -45,6 +45,7 @@ export function analyseAccompanied({
   kind,
   tracks,
   targetTempoBpm,
+  beatsPerBar,
   dsp = defaultDsp,
 }: {
   samples: Float32Array;
@@ -53,6 +54,7 @@ export function analyseAccompanied({
   kind: Exclude<AccompanimentKind, 'none'>;
   tracks: HandTracks | null;
   targetTempoBpm?: number;
+  beatsPerBar?: number;
   dsp?: Dsp;
 }): AccompaniedAnalysis {
   const limitations: Limitation[] = [];
@@ -86,6 +88,8 @@ export function analyseAccompanied({
     // Without exact repetition nothing is subtracted; only the hands can tell the live notes apart.
     liveShare = tracks ? 1 : 0;
   }
+
+  if (grid && beatsPerBar) grid = { ...grid, beatsPerBar };
 
   const att = attributeOnsets({ residualOnsetsMs: residualOnsets, residual: liveSignal, mix: samples, liveShare, tracks });
   // Backing tracks can't be better than "partial": nothing was actually subtracted.

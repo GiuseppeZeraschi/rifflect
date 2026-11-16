@@ -2,7 +2,11 @@ import { createTakeFiles } from '@/data/files/takeFiles';
 import { getProfile, upsertProfile } from '@/data/repositories/profileRepo';
 import { getTake } from '@/data/repositories/takesRepo';
 import { uriToPath } from '@/capture/config';
-import { createRecordingController, StorageFullError, type RecorderHandle } from '@/capture/recordingController';
+import {
+  createRecordingController,
+  StorageFullError,
+  type RecorderHandle,
+} from '@/capture/recordingController';
 import { MemoryFileStore } from '../../helpers/memoryFileStore';
 import { createTestDb } from '../../helpers/testDb';
 
@@ -36,7 +40,11 @@ function setup() {
     files,
     createRecorder,
     enqueue,
-    rememberAccompaniment: (s) => upsertProfile(t.db, { lastAccompanimentSetting: s }),
+    rememberSettings: (s) =>
+      upsertProfile(t.db, {
+        lastAccompanimentSetting: s.accompanimentSetting,
+        lastTimeSignature: s.timeSignature,
+      }),
     now: () => clock,
   });
   const advance = (ms: number) => {
@@ -45,7 +53,12 @@ function setup() {
   return { t, store, files, rec, ctl, enqueue, createRecorder, advance };
 }
 
-const opts = { cameraPosition: 'front' as const, accompanimentSetting: 'on' as const, targetTempoBpm: 90 };
+const opts = {
+  cameraPosition: 'front' as const,
+  accompanimentSetting: 'on' as const,
+  timeSignature: '3/4' as const,
+  targetTempoBpm: 90,
+};
 
 describe('recording controller', () => {
   it('records a take into its folder and queues it for analysis', async () => {
@@ -53,13 +66,27 @@ describe('recording controller', () => {
     const id = await ctl.start(opts);
     expect(ctl.getSnapshot()).toMatchObject({ state: 'recording', takeId: id });
     const row = getTake(t.db, id)!;
-    expect(row).toMatchObject({ captureStatus: 'recording', targetTempoBpm: 90, accompanimentSetting: 'on' });
+    expect(row).toMatchObject({
+      captureStatus: 'recording',
+      targetTempoBpm: 90,
+      accompanimentSetting: 'on',
+      timeSignature: '3/4',
+    });
     expect(createRecorder).toHaveBeenCalledWith(uriToPath(files.toAbsolute(row.videoPath)), 300);
-    expect(getProfile(t.db)?.lastAccompanimentSetting).toBe('on');
+    expect(getProfile(t.db)).toMatchObject({
+      lastAccompanimentSetting: 'on',
+      lastTimeSignature: '3/4',
+    });
 
     advance(42_000);
     const done = await ctl.stop();
-    expect(done).toMatchObject({ takeId: id, durationMs: 42_000, analysisStatus: 'pending', interrupted: false, reachedLimit: false });
+    expect(done).toMatchObject({
+      takeId: id,
+      durationMs: 42_000,
+      analysisStatus: 'pending',
+      interrupted: false,
+      reachedLimit: false,
+    });
     expect(getTake(t.db, id)).toMatchObject({ captureStatus: 'complete', durationMs: 42_000 });
     expect(enqueue).toHaveBeenCalledWith(id);
     expect(ctl.getSnapshot()).toMatchObject({ state: 'idle', lastFinished: { takeId: id } });
@@ -84,7 +111,10 @@ describe('recording controller', () => {
     await ctl.start(opts);
     advance(300_000);
     rec.finish(); // native maxDuration reached
-    expect(ctl.getSnapshot().lastFinished).toMatchObject({ reachedLimit: true, durationMs: 300_000 });
+    expect(ctl.getSnapshot().lastFinished).toMatchObject({
+      reachedLimit: true,
+      durationMs: 300_000,
+    });
     t.close();
   });
 
@@ -94,7 +124,11 @@ describe('recording controller', () => {
     advance(20_000);
     const done = await ctl.interrupt();
     expect(done).toMatchObject({ interrupted: true, analysisStatus: 'pending' });
-    expect(getTake(t.db, id)).toMatchObject({ captureStatus: 'partial', interrupted: true, durationMs: 20_000 });
+    expect(getTake(t.db, id)).toMatchObject({
+      captureStatus: 'partial',
+      interrupted: true,
+      durationMs: 20_000,
+    });
     expect(enqueue).toHaveBeenCalledWith(id);
     t.close();
   });
@@ -146,7 +180,7 @@ describe('recording controller', () => {
       files,
       createRecorder: async () => rec.handle,
       enqueue: () => {},
-      rememberAccompaniment: () => {},
+      rememberSettings: () => {},
       openLandmarkSink: (id) => ({ relPath: files.relLandmarksPath(id), close }),
       now: () => clock,
     });

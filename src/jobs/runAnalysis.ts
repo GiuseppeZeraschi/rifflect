@@ -11,6 +11,7 @@ import {
   type LandmarkFrame,
 } from '@/analysis';
 import { AUDIO, LANDMARKS } from '@/analysis/config/thresholds';
+import type { TimeSignature } from '@/data/db/schema';
 import type { Db } from '@/data/db/types';
 import type { TakeFiles } from '@/data/files/takeFiles';
 import { saveReport } from '@/data/repositories/reportsRepo';
@@ -41,6 +42,9 @@ export interface RunnerDeps {
 }
 
 /** Decoding and loading take the first 25% of the progress bar; the engine the rest. */
+/** Beats per bar for each time signature (6/8 is counted in eighth notes). */
+const BEATS_PER_BAR_OF: Record<TimeSignature, number> = { '4/4': 4, '3/4': 3, '6/8': 6 };
+
 const DECODE_SHARE = 0.25;
 
 export function createRunner(deps: RunnerDeps): Runner {
@@ -91,6 +95,7 @@ export function createRunner(deps: RunnerDeps): Runner {
           },
           cameraPosition: take.cameraPosition,
           ...(take.targetTempoBpm != null ? { targetTempoBpm: take.targetTempoBpm } : {}),
+          beatsPerBar: BEATS_PER_BAR_OF[take.timeSignature],
           accompaniment: take.accompanimentSetting,
           // Front-camera takes are recorded mirrored (selfie view), so their landmarks are too.
           landmarksMirrored: take.cameraPosition === 'front',

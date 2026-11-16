@@ -54,6 +54,17 @@ describe('timing findings', () => {
     expect(codes(r)).not.toContain('timing.rushing');
   });
 
+  it('counts beats in 3/4 when the take is in 3/4', () => {
+    // Rushing the last beat of every 3/4 bar. Counted in 4/4 the early notes would spread over all
+    // four beat positions and the pattern would be lost.
+    const { samples } = onsetTrain({ bpm: 120, beats: 36, beatOffset: { beat: 3, beatsPerBar: 3, offsetMs: -40 }, seed: 9 });
+    const r = analyseTiming(samples, { beatsPerBar: 3 });
+    const rush = r.findings.find((f) => f.issueCode === 'timing.rushing');
+    expect(rush?.metrics.beat).toBe(3);
+    const bars = r.grid!.assignments.map((x) => x.beatInBar).filter((b) => b !== null);
+    expect(Math.max(...bars)).toBe(3);
+  });
+
   it('reports drift up for a 6 BPM linear increase', () => {
     const { samples } = onsetTrain({ bpm: 90, beats: 40, driftBpm: 6, seed: 8 });
     const r = analyseTiming(samples, {});
