@@ -23,6 +23,12 @@ export interface CatalogueEntry {
 const num = (m: Metrics, k: string) => (typeof m[k] === 'number' ? (m[k] as number) : Number(m[k] ?? 0));
 const str = (m: Metrics, k: string) => String(m[k] ?? '');
 const abs = (v: number) => Math.abs(Math.round(v / 5) * 5);
+/** The timing reference: "loop", "click" or "backing track" (metric `ref`; older reports: loop). */
+const R = (m: Metrics) => str(m, 'ref') || 'loop';
+/** "the click" / "the loop's beat". */
+/** " on beat 3" / " in bar 1" / "". */
+const where = (m: Metrics) => (m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '');
+const beatOf = (m: Metrics) => (R(m) === 'click' ? 'the click' : `the ${R(m)}'s beat`);
 
 /** "around 0:42" from the atMs metric. */
 export function around(m: Metrics): string {
@@ -131,55 +137,55 @@ export const CATALOGUE: Record<IssueCode, CatalogueEntry> = {
     },
   },
   'timing.locked_to_accompaniment': {
-    headline: () => 'Locked in with the backing',
+    headline: (m) => `Locked in with the ${R(m)}`,
     observation: {
-      beginner: () => 'Your playing sat nicely with the backing.',
-      intermediate: (m) => `Your notes landed within about ${abs(num(m, 'meanAbsOffsetMs'))} ms of the backing's beat.`,
-      advanced: (m) => `Tight against the backing: ≈${abs(num(m, 'meanAbsOffsetMs'))} ms mean deviation.`,
+      beginner: (m) => `Your playing sat nicely with the ${R(m)}.`,
+      intermediate: (m) => `Your notes landed within about ${abs(num(m, 'meanAbsOffsetMs'))} ms of ${beatOf(m)}.`,
+      advanced: (m) => `Tight against the ${R(m)}: ≈${abs(num(m, 'meanAbsOffsetMs'))} ms mean deviation.`,
     },
     suggestion: {
-      beginner: () => 'Great. Try a faster loop or a busier part next.',
-      intermediate: () => 'Try more syncopated phrasing over the same loop.',
-      advanced: () => 'Experiment with deliberate push and lay-back against the loop.',
+      beginner: () => 'Great. Try a faster tempo or a busier part next.',
+      intermediate: (m) => `Try more syncopated phrasing over the same ${R(m)}.`,
+      advanced: (m) => `Experiment with deliberate push and lay-back against the ${R(m)}.`,
     },
   },
   'timing.ahead_of_accompaniment': {
-    headline: (m) => `Ahead of the loop${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}`,
+    headline: (m) => `Ahead of the ${R(m)}${where(m)}`,
     observation: {
-      beginner: (m) => `Your notes came a little before the backing's beat${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}, by about ${abs(num(m, 'meanOffsetMs'))} ms.`,
-      intermediate: (m) => `Your lead landed about ${abs(num(m, 'meanOffsetMs'))} ms ahead of the loop${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}.`,
-      advanced: (m) => `Leading the loop by ≈${abs(num(m, 'meanOffsetMs'))} ms${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}.`,
+      beginner: (m) => `Your notes came a little before ${beatOf(m)}${where(m)}, by about ${abs(num(m, 'meanOffsetMs'))} ms.`,
+      intermediate: (m) => `Your lead landed about ${abs(num(m, 'meanOffsetMs'))} ms ahead of the ${R(m)}${where(m)}.`,
+      advanced: (m) => `Leading the ${R(m)} by ≈${abs(num(m, 'meanOffsetMs'))} ms${where(m)}.`,
     },
     suggestion: {
-      beginner: () => 'Listen to the loop for a bar before you come in, and try to play with it rather than over it.',
-      intermediate: () => 'Leave a little more space: aim for your notes to land right on the loop\'s strums.',
+      beginner: (m) => `Listen to the ${R(m)} for a bar before you come in, and try to play with it rather than over it.`,
+      intermediate: (m) => `Leave a little more space: aim for your notes to land right on ${beatOf(m)}.`,
       advanced: () => 'Relax into the pocket; practise laying back slightly to counter the push.',
     },
   },
   'timing.behind_accompaniment': {
-    headline: (m) => `Behind the loop${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}`,
+    headline: (m) => `Behind the ${R(m)}${where(m)}`,
     observation: {
-      beginner: (m) => `Your notes came a little after the backing's beat${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}, by about ${abs(num(m, 'meanOffsetMs'))} ms.`,
-      intermediate: (m) => `Your lead landed about ${abs(num(m, 'meanOffsetMs'))} ms behind the loop${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}.`,
-      advanced: (m) => `Trailing the loop by ≈${abs(num(m, 'meanOffsetMs'))} ms${(m.beat ? ` on beat ${num(m, 'beat')}` : bars(m) ? ` in ${bars(m)}` : '')}.`,
+      beginner: (m) => `Your notes came a little after ${beatOf(m)}${where(m)}, by about ${abs(num(m, 'meanOffsetMs'))} ms.`,
+      intermediate: (m) => `Your lead landed about ${abs(num(m, 'meanOffsetMs'))} ms behind the ${R(m)}${where(m)}.`,
+      advanced: (m) => `Trailing the ${R(m)} by ≈${abs(num(m, 'meanOffsetMs'))} ms${where(m)}.`,
     },
     suggestion: {
-      beginner: () => 'Get your fingers to the next note a little earlier so you can play right with the loop.',
-      intermediate: () => 'Anticipate position shifts so the note is ready when the loop\'s beat arrives.',
-      advanced: () => 'Pre-plan fingerings for the phrase; practise the line against the loop at a lower tempo.',
+      beginner: (m) => `Get your fingers to the next note a little earlier so you can play right with the ${R(m)}.`,
+      intermediate: (m) => `Anticipate position shifts so the note is ready when ${beatOf(m)} arrives.`,
+      advanced: (m) => `Pre-plan fingerings for the phrase; practise the line against the ${R(m)} at a lower tempo.`,
     },
   },
   'timing.lost_place_in_loop': {
-    headline: () => 'Lost place in the loop',
+    headline: (m) => `Lost place in the ${R(m)}`,
     observation: {
-      beginner: (m) => `${around(m)[0]!.toUpperCase()}${around(m).slice(1)}, you seemed to lose your place in the loop for a while.`,
-      intermediate: (m) => `${around(m)[0]!.toUpperCase()}${around(m).slice(1)}, your phrase shifted by about ${num(m, 'shiftBeats')} beats against the loop.`,
-      advanced: (m) => `Phrase displaced ≈${num(m, 'shiftBeats')} beats against the loop ${around(m)}.`,
+      beginner: (m) => `${around(m)[0]!.toUpperCase()}${around(m).slice(1)}, you seemed to lose your place in the ${R(m)} for a while.`,
+      intermediate: (m) => `${around(m)[0]!.toUpperCase()}${around(m).slice(1)}, your phrase shifted by about ${num(m, 'shiftBeats')} beats against the ${R(m)}.`,
+      advanced: (m) => `Phrase displaced ≈${num(m, 'shiftBeats')} beats against the ${R(m)} ${around(m)}.`,
     },
     suggestion: {
-      beginner: () => 'Count the bars of the loop out loud while you play so you always know where "1" is.',
-      intermediate: () => 'Listen for the start of each loop cycle and re-anchor your phrase to it.',
-      advanced: () => 'Practise landing phrase endings on the loop\'s downbeat to keep the form in your ear.',
+      beginner: (m) => (R(m) === 'click' ? 'Count the bars out loud while you play so you always know where "1" is.' : `Count the bars of the ${R(m)} out loud while you play so you always know where "1" is.`),
+      intermediate: (m) => (R(m) === 'loop' ? 'Listen for the start of each loop cycle and re-anchor your phrase to it.' : 'Listen for beat 1 of each bar and re-anchor your phrase to it.'),
+      advanced: (m) => `Practise landing phrase endings on ${R(m) === 'click' ? 'the accented click' : `the ${R(m)}'s downbeat`} to keep the form in your ear.`,
     },
   },
   'technique.clean': {

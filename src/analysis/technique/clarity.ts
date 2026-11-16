@@ -76,7 +76,14 @@ function openStringRinging(x: Float32Array, onsetMs: number, dsp: Dsp): boolean 
  * Muted notes and open strings can't be attributed while the accompaniment keeps sounding, so they
  * are only judged for solo takes (a missed issue beats a false one).
  */
-export type ClarityContext = { kind: 'solo' } | { kind: 'loop'; loopMs: number } | { kind: 'click' } | { kind: 'backing' };
+export type ClarityContext =
+  | { kind: 'solo' }
+  | { kind: 'loop'; loopMs: number }
+  | { kind: 'click'; clickTimesMs?: number[] }
+  | { kind: 'backing' };
+
+/** How long after a click its sound (and the room's echo of it) is left out of the buzz window. */
+const CLICK_GUARD_MS = 30;
 
 export interface ClarityOptions {
   /** Per-onset confidence that the onset is live playing (US4). Defaults to 1 for all. */
@@ -96,7 +103,14 @@ export function analyseClarity(samples: Float32Array, onsetsMs: number[], opts: 
   if (usable.length < 4) return [];
 
   const buzzFrom = ctx.kind === 'click' ? 20 : 5;
-  const hfAt = (t: number, next: number) => highFrequencyRatio(samples, t + buzzFrom, Math.min(t + 80, next - 5));
+  const clicks = ctx.kind === 'click' ? (ctx.clickTimesMs ?? []) : [];
+  const hfAt = (t: number, next: number) => {
+    let from = t + buzzFrom;
+    const to = Math.min(t + 80, next - 5);
+    // A note just ahead of a click has the click inside its window: start after the click.
+    for (const c of clicks) if (c > t - CLICK_GUARD_MS && c < to) from = Math.max(from, c + CLICK_GUARD_MS);
+    return to - from >= 20 ? highFrequencyRatio(samples, from, to) : 0;
+  };
   let hf = usable.map(({ t, next }) => hfAt(t, next));
   const rawSorted = [...hf].sort((a, b) => a - b);
   const medianRaw = rawSorted[rawSorted.length >> 1]!;

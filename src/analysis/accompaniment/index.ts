@@ -154,9 +154,12 @@ export function analyseAccompanied({
 
   // Notes in unison with the loop can't be told apart from it, so they don't count for timing.
   const timedOnsets = live.filter((t) => !unison.unisonOnsets.has(t));
-  const timing = grid
+  const timingRaw = grid
     ? accompanimentTiming(timedOnsets, grid)
     : { findings: [], meanAbsOffsetMs: null, subdivision: 1 as const };
+  // What to call the reference in the feedback text ("ahead of the click", "…of the loop").
+  const ref = finalKind === 'backing' ? 'backing track' : finalKind;
+  const timing = { ...timingRaw, findings: timingRaw.findings.map((f) => ({ ...f, metrics: { ...f.metrics, ref } })) };
   if (!grid) limitations.push(limitation('tempo_not_detected'));
   const bpm = grid ? 60000 / grid.periodMs : null;
   return {
@@ -179,7 +182,7 @@ export function analyseAccompanied({
       finalKind === 'loop'
         ? { kind: 'loop', loopMs: detection.loopLengthMs! }
         : finalKind === 'click'
-          ? { kind: 'click' }
+          ? { kind: 'click', clickTimesMs: detection.clickTimesMs }
           : { kind: 'backing' },
   };
 }

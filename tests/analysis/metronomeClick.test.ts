@@ -5,6 +5,7 @@
 import { analyseTake } from '@/analysis';
 import { detectAccompaniment } from '@/analysis/accompaniment/detect';
 import { CLICK_SAMPLE_RATE, clickPositions, clickTrackWav } from '@/features/metronome/clickTrack';
+import { renderText } from '@/analysis/feedback-text/render';
 import { onsetTrain, rmsOf } from '../helpers/synth';
 
 /** WAV bytes → Float32 samples. */
@@ -75,4 +76,30 @@ describe('metronome click track', () => {
     },
     60_000,
   );
+
+  it('names the click in feedback and keeps it out of the buzz check for notes just ahead of it', async () => {
+    const bpm = 120;
+    const click = decode(clickTrackWav({ bpm, beatsPerBar: 4, minSeconds: 24 }));
+    // Clean notes 30 ms ahead of every click: the click falls inside each note's buzz window.
+    const { samples: guitar } = onsetTrain({ bpm, beats: 40, startMs: 470, seed: 8 });
+    const n = Math.min(click.length, guitar.length);
+    const gain = (0.5 * rmsOf(guitar)) / rmsOf(click);
+    const mix = Float32Array.from({ length: n }, (_, i) => guitar[i]! + gain * click[i]!);
+    const r = await analyseTake({
+      audio: { sampleRate: CLICK_SAMPLE_RATE, samples: mix },
+      landmarks: null,
+      durationMs: (n / CLICK_SAMPLE_RATE) * 1000,
+      player: { handedness: 'right', skillLevel: 'intermediate' },
+      cameraPosition: 'front',
+      accompaniment: 'off',
+      metronomeBpm: bpm,
+    });
+    const codes = r.points.map((p) => p.issueCode);
+    expect(codes).not.toContain('technique.fret_buzz');
+    const ahead = r.points.find((p) => p.issueCode === 'timing.ahead_of_accompaniment');
+    expect(ahead).toBeDefined();
+    const text = renderText(ahead!.issueCode, ahead!.metrics, 'intermediate');
+    expect(text.observation).toMatch(/ahead of the click/);
+    expect(`${text.observation} ${text.suggestion}`).not.toMatch(/loop/);
+  }, 60_000);
 });

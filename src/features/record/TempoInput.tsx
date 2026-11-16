@@ -58,7 +58,7 @@ export function TempoInput({
             onValueChange={onMetronomeChange}
             disabled={!editable}
             trackColor={{ true: p.primary, false: p.border }}
-            thumbColor={p.background}
+            thumbColor={metronomeOn ? p.onPrimary : p.textMuted}
           />
         </View>
       </View>

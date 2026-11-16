@@ -7,7 +7,7 @@
  * contracts/analysis-engine.md.
  */
 
-export const ENGINE_VERSION = '1.1.0';
+export const ENGINE_VERSION = '1.1.1';
 
 /** Findings below this confidence are never emitted (contract guarantee 6). */
 export const CONFIDENCE_FLOOR = 0.6;
